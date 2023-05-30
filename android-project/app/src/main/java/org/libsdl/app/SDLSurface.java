@@ -171,11 +171,11 @@ public class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
             }
         }
 
-        if (skip) {
-           Log.v("SDL", "Skip .. Surface is not ready.");
-           mIsSurfaceReady = false;
-           return;
-        }
+//        if (skip) {
+//           Log.v("SDL", "Skip .. Surface is not ready.");
+//           mIsSurfaceReady = false;
+//           return;
+//        }
 
         /* If the surface has been previously destroyed by onNativeSurfaceDestroyed, recreate it here */
         SDLActivity.onNativeSurfaceChanged();
@@ -349,10 +349,10 @@ public class SDLSurface extends SurfaceView implements SurfaceHolder.Callback,
                     break;
             }
 
-            if (newOrientation != SDLActivity.mCurrentOrientation) {
-                SDLActivity.mCurrentOrientation = newOrientation;
-                SDLActivity.onNativeOrientationChanged(newOrientation);
-            }
+//            if (newOrientation != SDLActivity.mCurrentOrientation) {
+//                SDLActivity.mCurrentOrientation = newOrientation;
+//                SDLActivity.onNativeOrientationChanged(newOrientation);
+//            }
 
             SDLActivity.onNativeAccel(-x / SensorManager.GRAVITY_EARTH,
                                       y / SensorManager.GRAVITY_EARTH,
