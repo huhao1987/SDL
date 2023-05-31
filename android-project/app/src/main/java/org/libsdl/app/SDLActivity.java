@@ -50,13 +50,15 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AppCompatActivity;
+
 import java.util.Hashtable;
 import java.util.Locale;
 
 /**
  * SDL Activity
  */
-public class SDLActivity extends Activity implements View.OnSystemUiVisibilityChangeListener {
+public class SDLActivity extends AppCompatActivity implements View.OnSystemUiVisibilityChangeListener {
     private static final String TAG = "SDL";
     private static final int SDL_MAJOR_VERSION = 2;
     private static final int SDL_MINOR_VERSION = 27;
