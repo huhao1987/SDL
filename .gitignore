@@ -187,7 +187,6 @@ debian/files
 debian/libsdl*/
 debian/tmp/
 android-project-kotlin/.gradle/
-android-project-kotlin/
 .gradle/
 gradlew.bat
 gradlew
