@@ -19,6 +19,12 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.View.OnTouchListener
 import android.view.WindowManager
+import androidx.appcompat.app.AppCompatActivity
+import org.libsdl.app.SDLValue.Companion.SDL_ORIENTATION_LANDSCAPE
+import org.libsdl.app.SDLValue.Companion.SDL_ORIENTATION_LANDSCAPE_FLIPPED
+import org.libsdl.app.SDLValue.Companion.SDL_ORIENTATION_PORTRAIT
+import org.libsdl.app.SDLValue.Companion.SDL_ORIENTATION_PORTRAIT_FLIPPED
+import org.libsdl.app.SDLValue.Companion.mNextNativeState
 
 /**
  * SDLSurface. This is what we draw on, so we need to know when it's created
@@ -28,6 +34,64 @@ import android.view.WindowManager
  */
 class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
     View.OnKeyListener, OnTouchListener, SensorEventListener {
+        companion object{
+            init {
+                System.loadLibrary("main")
+            }
+            external fun nativeGetVersion(): String?
+            external fun nativeSetupJNI(context:Context): Int
+            external fun nativeRunMain(library: String?, function: String?, arguments: Any?): Int
+
+            external fun nativeLowMemory()
+            external fun nativeSendQuit()
+            external fun nativeQuit()
+            external fun nativePause()
+            external fun nativeResume()
+            external fun nativeFocusChanged(hasFocus: Boolean)
+            external fun onNativeDropFile(filename: String)
+            external fun nativeSetScreenResolution(
+                surfaceWidth: Int,
+                surfaceHeight: Int,
+                deviceWidth: Int,
+                deviceHeight: Int,
+                rate: Float
+            )
+            external fun onNativeResize()
+            external fun onNativeKeyDown(keycode: Int)
+            external fun onNativeKeyUp(keycode: Int)
+            external fun onNativeSoftReturnKey(): Boolean
+            external fun onNativeKeyboardFocusLost()
+            external fun onNativeMouse(
+                button: Int,
+                action: Int,
+                x: Float,
+                y: Float,
+                relative: Boolean
+            )
+            external fun onNativeTouch(
+                touchDevId: Int, pointerFingerId: Int,
+                action: Int, x: Float,
+                y: Float, p: Float
+            )
+            external fun onNativeAccel(x: Float, y: Float, z: Float)
+            external fun onNativeClipboardChanged()
+            external fun onNativeSurfaceCreated()
+            external fun onNativeSurfaceChanged()
+            external fun onNativeSurfaceDestroyed()
+            external fun nativeGetHint(name: String?): String?
+            external fun nativeGetHintBoolean(name: String?, default_value: Boolean): Boolean
+
+            external fun nativeSetenv(name: String?, value: String?)
+
+            external fun onNativeOrientationChanged(orientation: Int)
+
+            external fun nativeAddTouch(touchId: Int, name: String?)
+
+            external fun nativePermissionResult(requestCode: Int, result: Boolean)
+
+            external fun onNativeLocaleChanged()
+
+        }
     // Sensors
     protected var mSensorManager: SensorManager
     protected var mDisplay: Display
@@ -57,6 +121,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
         mWidth = 1.0f
         mHeight = 1.0f
         mIsSurfaceReady = false
+        nativeSetupJNI(context)
     }
 
     fun handlePause() {
@@ -78,7 +143,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
     // Called when we have a valid drawing surface
     override fun surfaceCreated(holder: SurfaceHolder) {
         Log.v("SDL", "surfaceCreated()")
-        SDLActivity.onNativeSurfaceCreated()
+        onNativeSurfaceCreated()
     }
 
     // Called when we lose the surface
@@ -86,10 +151,10 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
         Log.v("SDL", "surfaceDestroyed()")
 
         // Transition to pause, if needed
-        SDLActivity.mNextNativeState = SDLActivity.NativeState.PAUSED
+        mNextNativeState = NativeState.PAUSED
         SDLActivity.handleNativeState()
         mIsSurfaceReady = false
-        SDLActivity.onNativeSurfaceDestroyed()
+        onNativeSurfaceDestroyed()
     }
 
     // Called when the surface is resized
@@ -98,9 +163,6 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
         format: Int, width: Int, height: Int
     ) {
         Log.v("SDL", "surfaceChanged()")
-        if (SDLActivity.mSingleton == null) {
-            return
-        }
         mWidth = width.toFloat()
         mHeight = height.toFloat()
         var nDeviceWidth = width
@@ -121,19 +183,20 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
 //        }
         Log.v("SDL", "Window size: " + width + "x" + height)
         Log.v("SDL", "Device size: " + nDeviceWidth + "x" + nDeviceHeight)
-        SDLActivity.nativeSetScreenResolution(
+        nativeSetScreenResolution(
             width,
             height,
             nDeviceWidth,
             nDeviceHeight,
             mDisplay.refreshRate
         )
-        SDLActivity.onNativeResize()
+        onNativeResize()
 
         // Prevent a screen distortion glitch,
         // for instance when the device is in Landscape and a Portrait App is resumed.
         var skip = false
-        val requestedOrientation = SDLActivity.mSingleton.requestedOrientation
+
+        val requestedOrientation = (context as AppCompatActivity).requestedOrientation
         if (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT || requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT) {
             if (mWidth > mHeight) {
                 skip = true
@@ -157,7 +220,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
         // Don't skip in MultiWindow.
         if (skip) {
             if (Build.VERSION.SDK_INT >= 24) {
-                if (SDLActivity.mSingleton.isInMultiWindowMode) {
+                if ((context as AppCompatActivity).isInMultiWindowMode) {
                     Log.v("SDL", "Don't skip in Multi-Window")
                     skip = false
                 }
@@ -170,10 +233,12 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
 //           return;
 //        }
 
-        /* If the surface has been previously destroyed by onNativeSurfaceDestroyed, recreate it here */SDLActivity.onNativeSurfaceChanged()
+        /* If the surface has been previously destroyed by onNativeSurfaceDestroyed, recreate it here */
+        onNativeSurfaceChanged()
 
-        /* Surface is ready */mIsSurfaceReady = true
-        SDLActivity.mNextNativeState = SDLActivity.NativeState.RESUMED
+        /* Surface is ready */
+        mIsSurfaceReady = true
+        mNextNativeState = NativeState.RESUMED
         SDLActivity.handleNativeState()
     }
 
@@ -221,7 +286,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
             val motionListener = SDLActivity.getMotionListener()
             x = motionListener.getEventX(event)
             y = motionListener.getEventY(event)
-            SDLActivity.onNativeMouse(mouseButton, action, x, y, motionListener.inRelativeMode())
+            onNativeMouse(mouseButton, action, x, y, motionListener.inRelativeMode())
         } else {
             when (action) {
                 MotionEvent.ACTION_MOVE -> {
@@ -236,7 +301,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
                             // see the documentation of getPressure(i)
                             p = 1.0f
                         }
-                        SDLActivity.onNativeTouch(touchDevId, pointerFingerId, action, x, y, p)
+                        onNativeTouch(touchDevId, pointerFingerId, action, x, y, p)
                         i++
                     }
                 }
@@ -257,7 +322,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
                         // see the documentation of getPressure(i)
                         p = 1.0f
                     }
-                    SDLActivity.onNativeTouch(touchDevId, pointerFingerId, action, x, y, p)
+                    onNativeTouch(touchDevId, pointerFingerId, action, x, y, p)
                 }
 
                 MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_POINTER_DOWN -> {
@@ -271,7 +336,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
                     if (p > 1.0f) {
                         p = 1.0f
                     }
-                    SDLActivity.onNativeTouch(touchDevId, pointerFingerId, action, x, y, p)
+                    onNativeTouch(touchDevId, pointerFingerId, action, x, y, p)
                 }
 
                 MotionEvent.ACTION_CANCEL -> {
@@ -286,7 +351,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
                             // see the documentation of getPressure(i)
                             p = 1.0f
                         }
-                        SDLActivity.onNativeTouch(
+                        onNativeTouch(
                             touchDevId,
                             pointerFingerId,
                             MotionEvent.ACTION_UP,
@@ -337,31 +402,31 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
                 Surface.ROTATION_90 -> {
                     x = -event.values[1]
                     y = event.values[0]
-                    newOrientation = SDLActivity.SDL_ORIENTATION_LANDSCAPE
+                    newOrientation = SDL_ORIENTATION_LANDSCAPE
                 }
 
                 Surface.ROTATION_270 -> {
                     x = event.values[1]
                     y = -event.values[0]
-                    newOrientation = SDLActivity.SDL_ORIENTATION_LANDSCAPE_FLIPPED
+                    newOrientation = SDL_ORIENTATION_LANDSCAPE_FLIPPED
                 }
 
                 Surface.ROTATION_180 -> {
                     x = -event.values[0]
                     y = -event.values[1]
-                    newOrientation = SDLActivity.SDL_ORIENTATION_PORTRAIT_FLIPPED
+                    newOrientation = SDL_ORIENTATION_PORTRAIT_FLIPPED
                 }
 
                 Surface.ROTATION_0 -> {
                     x = event.values[0]
                     y = event.values[1]
-                    newOrientation = SDLActivity.SDL_ORIENTATION_PORTRAIT
+                    newOrientation = SDL_ORIENTATION_PORTRAIT
                 }
 
                 else -> {
                     x = event.values[0]
                     y = event.values[1]
-                    newOrientation = SDLActivity.SDL_ORIENTATION_PORTRAIT
+                    newOrientation = SDL_ORIENTATION_PORTRAIT
                 }
             }
 
@@ -369,7 +434,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
 //                SDLActivity.mCurrentOrientation = newOrientation;
 //                SDLActivity.onNativeOrientationChanged(newOrientation);
 //            }
-            SDLActivity.onNativeAccel(
+            onNativeAccel(
                 -x / SensorManager.GRAVITY_EARTH,
                 y / SensorManager.GRAVITY_EARTH,
                 event.values[2] / SensorManager.GRAVITY_EARTH
@@ -386,14 +451,14 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
             MotionEvent.ACTION_SCROLL -> {
                 x = event.getAxisValue(MotionEvent.AXIS_HSCROLL, 0)
                 y = event.getAxisValue(MotionEvent.AXIS_VSCROLL, 0)
-                SDLActivity.onNativeMouse(0, action, x, y, false)
+                onNativeMouse(0, action, x, y, false)
                 return true
             }
 
             MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_MOVE -> {
                 x = event.getX(0)
                 y = event.getY(0)
-                SDLActivity.onNativeMouse(0, action, x, y, true)
+                onNativeMouse(0, action, x, y, true)
                 return true
             }
 
@@ -408,7 +473,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
                 x = event.getX(0)
                 y = event.getY(0)
                 val button = event.buttonState
-                SDLActivity.onNativeMouse(button, action, x, y, true)
+                onNativeMouse(button, action, x, y, true)
                 return true
             }
         }

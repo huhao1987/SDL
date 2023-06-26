@@ -2703,7 +2703,541 @@ int Android_JNI_OpenURL(const char *url)
     (*env)->DeleteLocalRef(env, jurl);
     return ret;
 }
+/**
+ * The functions below are the native functions of SDLSurface.
+ */
+#define TAG "SDLSurface"
+
+JNIEXPORT jstring JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_nativeGetVersion(JNIEnv *env, jobject thiz) {
+    char version[128];
+
+    SDL_snprintf(version, sizeof(version), "%d.%d.%d", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
+    __android_log_print(ANDROID_LOG_DEBUG, TAG, "nativeGetVersion()");
+
+    return (*env)->NewStringUTF(env, version);
+}
+jobject context;
+jobject getGlobalContext(JNIEnv *env)
+{
+    if(!context) {
+        jclass activityThread = (*env)->FindClass(env, "android/app/ActivityThread");
+        jmethodID currentActivityThread = (*env)->GetStaticMethodID(env, activityThread,
+                                                                    "currentActivityThread",
+                                                                    "()Landroid/app/ActivityThread;");
+        jobject at = (*env)->CallStaticObjectMethod(env, activityThread, currentActivityThread);
+        jmethodID getApplication = (*env)->GetMethodID(env, activityThread, "getApplication",
+                                                       "()Landroid/app/Application;");
+        context = (*env)->CallObjectMethod(env, at, getApplication);
+    }
+    return context;
+}
+
+JNIEXPORT jint JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_nativeSetupJNI(JNIEnv *env, jobject thiz,
+                                                             jobject jcontext) {
+    __android_log_print(ANDROID_LOG_DEBUG, TAG, "nativeSetupJNI()");
+
+    /*
+     * Create mThreadKey so we can keep track of the JNIEnv assigned to each thread
+     * Refer to http://developer.android.com/guide/practices/design/jni.html for the rationale behind this
+     */
+    Android_JNI_CreateKey_once();
+
+    /* Save JNIEnv of SDLActivity */
+    Android_JNI_SetEnv(env);
+
+    if (mJavaVM == NULL) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "failed to found a JavaVM");
+    }
+
+    /* Use a mutex to prevent concurrency issues between Java Activity and Native thread code, when using 'Android_Window'.
+     * (Eg. Java sending Touch events, while native code is destroying the main SDL_Window. )
+     */
+    if (Android_ActivityMutex == NULL) {
+        Android_ActivityMutex = SDL_CreateMutex(); /* Could this be created twice if onCreate() is called a second time ? */
+    }
+
+    if (Android_ActivityMutex == NULL) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "failed to create Android_ActivityMutex mutex");
+    }
+
+    Android_PauseSem = SDL_CreateSemaphore(0);
+    if (Android_PauseSem == NULL) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "failed to create Android_PauseSem semaphore");
+    }
+
+    Android_ResumeSem = SDL_CreateSemaphore(0);
+    if (Android_ResumeSem == NULL) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "failed to create Android_ResumeSem semaphore");
+    }
+        getGlobalContext(env);
+}
+
+JNIEXPORT jint JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_nativeRunMain(JNIEnv *env, jobject thiz,
+                                                            jstring library, jstring function,
+                                                            jobject array) {
+    int status = -1;
+    const char *library_file;
+    void *library_handle;
+
+    __android_log_print(ANDROID_LOG_DEBUG, TAG, "nativeRunMain()");
+
+    /* Save JNIEnv of SDLThread */
+    Android_JNI_SetEnv(env);
+
+    library_file = (*env)->GetStringUTFChars(env, library, NULL);
+    library_handle = dlopen(library_file, RTLD_GLOBAL);
+
+    if (library_handle == NULL) {
+        /* When deploying android app bundle format uncompressed native libs may not extract from apk to filesystem.
+           In this case we should use lib name without path. https://bugzilla.libsdl.org/show_bug.cgi?id=4739 */
+        const char *library_name = SDL_strrchr(library_file, '/');
+        if (library_name && *library_name) {
+            library_name += 1;
+            library_handle = dlopen(library_name, RTLD_GLOBAL);
+        }
+    }
+
+    if (library_handle) {
+        const char *function_name;
+        SDL_main_func SDL_main;
+
+        function_name = (*env)->GetStringUTFChars(env, function, NULL);
+        SDL_main = (SDL_main_func)dlsym(library_handle, function_name);
+        if (SDL_main) {
+            int i;
+            int argc;
+            int len;
+            char **argv;
+            SDL_bool isstack;
+
+            /* Prepare the arguments. */
+            len = (*env)->GetArrayLength(env, array);
+            argv = SDL_small_alloc(char *, 1 + len + 1, &isstack); /* !!! FIXME: check for NULL */
+            argc = 0;
+            /* Use the name "app_process" so PHYSFS_platformCalcBaseDir() works.
+               https://bitbucket.org/MartinFelis/love-android-sdl2/issue/23/release-build-crash-on-start
+             */
+            argv[argc++] = SDL_strdup("app_process");
+            for (i = 0; i < len; ++i) {
+                const char *utf;
+                char *arg = NULL;
+                jstring string = (*env)->GetObjectArrayElement(env, array, i);
+                if (string) {
+                    utf = (*env)->GetStringUTFChars(env, string, 0);
+                    if (utf) {
+                        arg = SDL_strdup(utf);
+                        (*env)->ReleaseStringUTFChars(env, string, utf);
+                    }
+                    (*env)->DeleteLocalRef(env, string);
+                }
+                if (arg == NULL) {
+                    arg = SDL_strdup("");
+                }
+                argv[argc++] = arg;
+            }
+            argv[argc] = NULL;
+
+            /* Run the application. */
+            status = SDL_main(argc, argv);
+
+            /* Release the arguments. */
+            for (i = 0; i < argc; ++i) {
+                SDL_free(argv[i]);
+            }
+            SDL_small_free(argv, isstack);
+
+        } else {
+            __android_log_print(ANDROID_LOG_ERROR, TAG, "nativeRunMain(): Couldn't find function %s in library %s", function_name, library_file);
+        }
+        (*env)->ReleaseStringUTFChars(env, function, function_name);
+
+        dlclose(library_handle);
+
+    } else {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "nativeRunMain(): Couldn't load library %s", library_file);
+    }
+    (*env)->ReleaseStringUTFChars(env, library, library_file);
+
+    /* This is a Java thread, it doesn't need to be Detached from the JVM.
+     * Set to mThreadKey value to NULL not to call pthread_create destructor 'Android_JNI_ThreadDestroyed' */
+    Android_JNI_SetEnv(NULL);
+
+    /* Do not issue an exit or the whole application will terminate instead of just the SDL thread */
+    /* exit(status); */
+
+    return status;
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_nativeLowMemory(JNIEnv *env, jobject thiz) {
+    SDL_SendAppEvent(SDL_APP_LOWMEMORY);
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_nativeSendQuit(JNIEnv *env, jobject thiz) {
+/* Discard previous events. The user should have handled state storage
+     * in SDL_APP_WILLENTERBACKGROUND. After nativeSendQuit() is called, no
+     * events other than SDL_QUIT and SDL_APP_TERMINATING should fire */
+    SDL_FlushEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
+    /* Inject a SDL_QUIT event */
+    SDL_SendQuit();
+    SDL_SendAppEvent(SDL_APP_TERMINATING);
+    /* Robustness: clear any pending Pause */
+    while (SDL_SemTryWait(Android_PauseSem) == 0) {
+        /* empty */
+    }
+    /* Resume the event loop so that the app can catch SDL_QUIT which
+     * should now be the top event in the event queue. */
+    SDL_SemPost(Android_ResumeSem);
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_nativeQuit(JNIEnv *env, jobject thiz) {
+    const char *str;
+
+    if (Android_ActivityMutex) {
+        SDL_DestroyMutex(Android_ActivityMutex);
+        Android_ActivityMutex = NULL;
+    }
+
+    if (Android_PauseSem) {
+        SDL_DestroySemaphore(Android_PauseSem);
+        Android_PauseSem = NULL;
+    }
+
+    if (Android_ResumeSem) {
+        SDL_DestroySemaphore(Android_ResumeSem);
+        Android_ResumeSem = NULL;
+    }
+
+    Internal_Android_Destroy_AssetManager();
+
+    str = SDL_GetError();
+    if (str && str[0]) {
+        __android_log_print(ANDROID_LOG_ERROR, TAG, "SDLActivity thread ends (error=%s)", str);
+    } else {
+        __android_log_print(ANDROID_LOG_VERBOSE, TAG, "SDLActivity thread ends");
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_nativePause(JNIEnv *env, jobject thiz) {
+    __android_log_print(ANDROID_LOG_VERBOSE, TAG, "nativePause()");
+
+    /* Signal the pause semaphore so the event loop knows to pause and (optionally) block itself.
+     * Sometimes 2 pauses can be queued (eg pause/resume/pause), so it's always increased. */
+    SDL_SemPost(Android_PauseSem);
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_nativeResume(JNIEnv *env, jobject thiz) {
+    __android_log_print(ANDROID_LOG_VERBOSE, TAG, "nativeResume()");
+
+    /* Signal the resume semaphore so the event loop knows to resume and restore the GL Context
+     * We can't restore the GL Context here because it needs to be done on the SDL main thread
+     * and this function will be called from the Java thread instead.
+     */
+    SDL_SemPost(Android_ResumeSem);
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_nativeFocusChanged(JNIEnv *env, jobject thiz,
+                                                                 jboolean has_focus) {
+    SDL_LockMutex(Android_ActivityMutex);
+
+    if (Android_Window) {
+        __android_log_print(ANDROID_LOG_VERBOSE, "SDL", "nativeFocusChanged()");
+        SDL_SendWindowEvent(Android_Window, (has_focus ? SDL_WINDOWEVENT_FOCUS_GAINED : SDL_WINDOWEVENT_FOCUS_LOST), 0, 0);
+    }
+
+    SDL_UnlockMutex(Android_ActivityMutex);
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeDropFile(JNIEnv *env, jobject thiz,
+                                                               jstring filename) {
+    const char *path = (*env)->GetStringUTFChars(env, filename, NULL);
+    SDL_SendDropFile(NULL, path);
+    (*env)->ReleaseStringUTFChars(env, filename, path);
+    SDL_SendDropComplete(NULL);
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_nativeSetScreenResolution(JNIEnv *env, jobject thiz,
+                                                                        jint surface_width,
+                                                                        jint surface_height,
+                                                                        jint device_width,
+                                                                        jint device_height,
+                                                                        jfloat rate) {
+    SDL_LockMutex(Android_ActivityMutex);
+
+    Android_SetScreenResolution(surface_width, surface_height, device_width, device_height, rate);
+
+    SDL_UnlockMutex(Android_ActivityMutex);}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeResize(JNIEnv *env, jobject thiz) {
+    SDL_LockMutex(Android_ActivityMutex);
+
+    if (Android_Window) {
+        Android_SendResize(Android_Window);
+    }
+
+    SDL_UnlockMutex(Android_ActivityMutex);
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeKeyDown(JNIEnv *env, jobject thiz,
+                                                              jint keycode) {
+    Android_OnKeyDown(keycode);
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeKeyUp(JNIEnv *env, jobject thiz,
+                                                            jint keycode) {
+    Android_OnKeyUp(keycode);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeSoftReturnKey(JNIEnv *env, jobject thiz) {
+    if (SDL_GetHintBoolean(SDL_HINT_RETURN_KEY_HIDES_IME, SDL_FALSE)) {
+        SDL_StopTextInput();
+        return JNI_TRUE;
+    }
+    return JNI_FALSE;
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeKeyboardFocusLost(JNIEnv *env, jobject thiz) {
+    SDL_StopTextInput();
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeMouse(JNIEnv *env, jobject thiz, jint button,
+                                                            jint action, jfloat x, jfloat y,
+                                                            jboolean relative) {
+    SDL_StopTextInput();
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeTouch(JNIEnv *env, jobject thiz,
+                                                            jint touch_dev_id,
+                                                            jint pointer_finger_id, jint action,
+                                                            jfloat x, jfloat y, jfloat p) {
+    SDL_LockMutex(Android_ActivityMutex);
+
+    Android_OnTouch(Android_Window, touch_dev_id, pointer_finger_id, action, x, y, p);
+
+    SDL_UnlockMutex(Android_ActivityMutex);
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeAccel(JNIEnv *env, jobject thiz, jfloat x,
+                                                            jfloat y, jfloat z) {
+    fLastAccelerometer[0] = x;
+    fLastAccelerometer[1] = y;
+    fLastAccelerometer[2] = z;
+    bHasNewData = SDL_TRUE;
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeClipboardChanged(JNIEnv *env, jobject thiz) {
+    SDL_SendClipboardUpdate();
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeSurfaceCreated(JNIEnv *env, jobject thiz) {
+    SDL_LockMutex(Android_ActivityMutex);
+
+    if (Android_Window) {
+        SDL_WindowData *data = (SDL_WindowData *)Android_Window->driverdata;
+
+        data->native_window = Android_JNI_GetNativeWindow();
+        if (data->native_window == NULL) {
+            SDL_SetError("Could not fetch native window from UI thread");
+        }
+    }
+
+    SDL_UnlockMutex(Android_ActivityMutex);
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeSurfaceChanged(JNIEnv *env, jobject thiz) {
+    SDL_LockMutex(Android_ActivityMutex);
+
+#if SDL_VIDEO_OPENGL_EGL
+    if (Android_Window) {
+        SDL_VideoDevice *_this = SDL_GetVideoDevice();
+        SDL_WindowData *data = (SDL_WindowData *)Android_Window->driverdata;
+
+        /* If the surface has been previously destroyed by onNativeSurfaceDestroyed, recreate it here */
+        if (data->egl_surface == EGL_NO_SURFACE) {
+            data->egl_surface = SDL_EGL_CreateSurface(_this, (NativeWindowType)data->native_window);
+        }
+
+        /* GL Context handling is done in the event loop because this function is run from the Java thread */
+    }
+#endif
+
+    SDL_UnlockMutex(Android_ActivityMutex);
+}
+
+JNIEXPORT void JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_onNativeSurfaceDestroyed(JNIEnv *env, jobject thiz) {
+    int nb_attempt = 50;
+
+    retry:
+
+    SDL_LockMutex(Android_ActivityMutex);
+
+    if (Android_Window) {
+        SDL_VideoDevice *_this = SDL_GetVideoDevice();
+        SDL_WindowData *data = (SDL_WindowData *)Android_Window->driverdata;
+
+        /* Wait for Main thread being paused and context un-activated to release 'egl_surface' */
+        if (!data->backup_done) {
+            nb_attempt -= 1;
+            if (nb_attempt == 0) {
+                SDL_SetError("Try to release egl_surface with context probably still active");
+            } else {
+                SDL_UnlockMutex(Android_ActivityMutex);
+                SDL_Delay(10);
+                goto retry;
+            }
+        }
+
+#if SDL_VIDEO_OPENGL_EGL
+        if (data->egl_surface != EGL_NO_SURFACE) {
+            SDL_EGL_DestroySurface(_this, data->egl_surface);
+            data->egl_surface = EGL_NO_SURFACE;
+        }
+#endif
+
+        if (data->native_window) {
+            ANativeWindow_release(data->native_window);
+            data->native_window = NULL;
+        }
+
+        /* GL Context handling is done in the event loop because this function is run from the Java thread */
+    }
+
+    SDL_UnlockMutex(Android_ActivityMutex);
+}
+
+JNIEXPORT jstring JNICALL
+Java_org_libsdl_app_SDLSurface_00024Companion_nativeGetHint(JNIEnv *env, jobject thiz,
+                                                            jstring name) {
+        const char *utfname = (*env)->GetStringUTFChars(env, name, NULL);
+        const char *hint = SDL_GetHint(utfname);
+
+        jstring result = (*env)->NewStringUTF(env, hint);
+        (*env)->ReleaseStringUTFChars(env, name, utfname);
+
+        return result;
+}
+
+    JNIEXPORT jboolean JNICALL
+    Java_org_libsdl_app_SDLSurface_00024Companion_nativeGetHintBoolean(JNIEnv *env, jobject thiz,
+                                                                       jstring name,
+                                                                       jboolean default_value) {
+        jboolean result;
+
+        const char *utfname = (*env)->GetStringUTFChars(env, name, NULL);
+        result = SDL_GetHintBoolean(utfname, default_value);
+        (*env)->ReleaseStringUTFChars(env, name, utfname);
+
+        return result;
+    }
+
+
+    JNIEXPORT void JNICALL
+    Java_org_libsdl_app_SDLSurface_00024Companion_nativeSetenv(JNIEnv *env, jobject thiz,
+                                                               jstring name,
+                                                               jstring value) {
+        const char *utfname = (*env)->GetStringUTFChars(env, name, NULL);
+        const char *utfvalue = (*env)->GetStringUTFChars(env, value, NULL);
+
+        SDL_setenv(utfname, utfvalue, 1);
+
+        (*env)->ReleaseStringUTFChars(env, name, utfname);
+        (*env)->ReleaseStringUTFChars(env, value, utfvalue);
+}
+
+    JNIEXPORT void JNICALL
+    Java_org_libsdl_app_SDLSurface_00024Companion_onNativeOrientationChanged(JNIEnv *env,
+                                                                             jobject thiz,
+                                                                             jint orientation) {
+        SDL_LockMutex(Android_ActivityMutex);
+
+        displayOrientation = (SDL_DisplayOrientation)orientation;
+
+        if (Android_Window) {
+            SDL_VideoDisplay *display = SDL_GetDisplay(0);
+            SDL_SendDisplayEvent(display, SDL_DISPLAYEVENT_ORIENTATION, orientation);
+        }
+
+        SDL_UnlockMutex(Android_ActivityMutex);
+}
+
+    JNIEXPORT void JNICALL
+    Java_org_libsdl_app_SDLSurface_00024Companion_nativeAddTouch(JNIEnv *env, jobject thiz,
+                                                                 jint touch_id, jstring name) {
+        const char *utfname = (*env)->GetStringUTFChars(env, name, NULL);
+
+        SDL_AddTouch((SDL_TouchID)touch_id, SDL_TOUCH_DEVICE_DIRECT, utfname);
+
+        (*env)->ReleaseStringUTFChars(env, name, utfname);
+}
+
+    JNIEXPORT void JNICALL
+    Java_org_libsdl_app_SDLSurface_00024Companion_nativePermissionResult(JNIEnv *env, jobject thiz,
+                                                                         jint request_code,
+                                                                         jboolean result) {
+        bPermissionRequestResult = result;
+        SDL_AtomicSet(&bPermissionRequestPending, SDL_FALSE);
+}
+
+    JNIEXPORT void JNICALL
+    Java_org_libsdl_app_SDLSurface_00024Companion_onNativeLocaleChanged(JNIEnv *env, jobject thiz) {
+        SDL_SendAppEvent(SDL_LOCALECHANGED);
+    }
 
 #endif /* __ANDROID__ */
 
 /* vi: set ts=4 sw=4 expandtab: */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

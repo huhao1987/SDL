@@ -4,11 +4,11 @@ import android.os.Build;
 import android.view.InputDevice;
 import android.view.MotionEvent;
 
-import org.libsdl.app.ControlerManagers.SDLHapticHandler;
-import org.libsdl.app.ControlerManagers.SDLHapticHandler_API26;
-import org.libsdl.app.ControlerManagers.SDLJoystickHandler;
-import org.libsdl.app.ControlerManagers.SDLJoystickHandler_API16;
-import org.libsdl.app.ControlerManagers.SDLJoystickHandler_API19;
+import org.libsdl.app.Haptic.SDLHapticHandler;
+import org.libsdl.app.Haptic.SDLHapticHandler_API26;
+import org.libsdl.app.Joystick.SDLJoystickHandler;
+import org.libsdl.app.Joystick.SDLJoystickHandler_API16;
+import org.libsdl.app.Joystick.SDLJoystickHandler_API19;
 
 
 public class SDLControllerManager

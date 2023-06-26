@@ -44,9 +44,9 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import org.libsdl.app.ControlerManagers.SDLGenericMotionListener_API12;
-import org.libsdl.app.ControlerManagers.SDLGenericMotionListener_API24;
-import org.libsdl.app.ControlerManagers.SDLGenericMotionListener_API26;
+import org.libsdl.app.GenericMotion.SDLGenericMotionListener_API12;
+import org.libsdl.app.GenericMotion.SDLGenericMotionListener_API24;
+import org.libsdl.app.GenericMotion.SDLGenericMotionListener_API26;
 
 import java.util.Hashtable;
 import java.util.Locale;
@@ -387,7 +387,7 @@ public class SDLActivity extends AppCompatActivity implements View.OnSystemUiVis
 
         // So we can call stuff from static callbacks
         mSingleton = this;
-        SDL.setContext(this);
+        SDL.INSTANCE.setContext(this);
 
         mClipboardHandler = new SDLClipboardHandler();
 
@@ -768,7 +768,7 @@ public class SDLActivity extends AppCompatActivity implements View.OnSystemUiVis
     protected static class SDLCommandHandler extends Handler {
         @Override
         public void handleMessage(Message msg) {
-            Context context = SDL.getContext();
+            Context context = SDL.INSTANCE.getContext();
             if (context == null) {
                 Log.e(TAG, "error handling message, getContext() returned null");
                 return;
@@ -1117,7 +1117,7 @@ public class SDLActivity extends AppCompatActivity implements View.OnSystemUiVis
             return false;
         }
 
-        InputMethodManager imm = (InputMethodManager) SDL.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+        InputMethodManager imm = (InputMethodManager) SDL.INSTANCE.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
         return imm.isAcceptingText();
 
     }
@@ -1165,7 +1165,7 @@ public class SDLActivity extends AppCompatActivity implements View.OnSystemUiVis
      * This method is called by SDL using JNI.
      */
     public static Context getContext() {
-        return SDL.getContext();
+        return SDL.INSTANCE.getContext();
     }
 
     /**
@@ -1309,7 +1309,7 @@ public class SDLActivity extends AppCompatActivity implements View.OnSystemUiVis
             params.topMargin = y;
 
             if (mTextEdit == null) {
-                mTextEdit = new DummyEdit(SDL.getContext());
+                mTextEdit = new DummyEdit(SDL.INSTANCE.getContext());
 
                 mLayout.addView(mTextEdit, params);
             } else {
@@ -1319,7 +1319,7 @@ public class SDLActivity extends AppCompatActivity implements View.OnSystemUiVis
             mTextEdit.setVisibility(View.VISIBLE);
             mTextEdit.requestFocus();
 
-            InputMethodManager imm = (InputMethodManager) SDL.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
+            InputMethodManager imm = (InputMethodManager) SDL.INSTANCE.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
             imm.showSoftInput(mTextEdit, 0);
 
             mScreenKeyboardShown = true;
@@ -1801,7 +1801,7 @@ public class SDLActivity extends AppCompatActivity implements View.OnSystemUiVis
         }
         if (Build.VERSION.SDK_INT >= 24) {
             try {
-                mSurface.setPointerIcon(PointerIcon.getSystemIcon(SDL.getContext(), cursor_type));
+                mSurface.setPointerIcon(PointerIcon.getSystemIcon(SDL.INSTANCE.getContext(), cursor_type));
             } catch (Exception e) {
                 return false;
             }
