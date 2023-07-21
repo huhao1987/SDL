@@ -180,3 +180,8 @@ debian/.debhelper/
 debian/files
 debian/libsdl*/
 debian/tmp/
+gradlew
+gradlew.bat
+local.properties
+.gradle/
+gradle/
