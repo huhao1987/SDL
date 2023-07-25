@@ -5,6 +5,7 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.BaseInputConnection
 import android.widget.EditText
+import org.libsdl.app.SDLUtils.onNativeSoftReturnKey
 
 internal class SDLInputConnection(targetView: View?, fullEditor: Boolean) :
     BaseInputConnection(targetView, fullEditor) {
@@ -32,7 +33,7 @@ internal class SDLInputConnection(targetView: View?, fullEditor: Boolean) :
          * as we do with physical keyboards, let's just use it to hide the keyboard.
          */
         if (event.keyCode == KeyEvent.KEYCODE_ENTER) {
-            if (SDLActivity.onNativeSoftReturnKey()) {
+            if (onNativeSoftReturnKey()) {
                 return true
             }
         }
@@ -90,7 +91,7 @@ internal class SDLInputConnection(targetView: View?, fullEditor: Boolean) :
             while (offset < pendingText.length) {
                 val codePoint = pendingText.codePointAt(offset)
                 if (codePoint == '\n'.code) {
-                    if (SDLActivity.onNativeSoftReturnKey()) {
+                    if (onNativeSoftReturnKey()) {
                         return
                     }
                 }

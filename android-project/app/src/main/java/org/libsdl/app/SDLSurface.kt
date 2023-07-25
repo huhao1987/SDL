@@ -19,18 +19,18 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.View.OnTouchListener
 import android.view.WindowManager
-import org.libsdl.app.SDLActivity.Companion.handleKeyEvent
-import org.libsdl.app.SDLActivity.Companion.handleNativeState
-import org.libsdl.app.SDLActivity.Companion.motionListener
-import org.libsdl.app.SDLActivity.Companion.nativeSetScreenResolution
-import org.libsdl.app.SDLActivity.Companion.onNativeAccel
-import org.libsdl.app.SDLActivity.Companion.onNativeMouse
-import org.libsdl.app.SDLActivity.Companion.onNativeOrientationChanged
-import org.libsdl.app.SDLActivity.Companion.onNativeResize
-import org.libsdl.app.SDLActivity.Companion.onNativeSurfaceChanged
-import org.libsdl.app.SDLActivity.Companion.onNativeSurfaceCreated
-import org.libsdl.app.SDLActivity.Companion.onNativeSurfaceDestroyed
-import org.libsdl.app.SDLActivity.Companion.onNativeTouch
+import org.libsdl.app.SDLUtils.handleKeyEvent
+import org.libsdl.app.SDLUtils.handleNativeState
+import org.libsdl.app.SDLUtils.motionListener
+import org.libsdl.app.SDLUtils.nativeSetScreenResolution
+import org.libsdl.app.SDLUtils.onNativeAccel
+import org.libsdl.app.SDLUtils.onNativeMouse
+import org.libsdl.app.SDLUtils.onNativeOrientationChanged
+import org.libsdl.app.SDLUtils.onNativeResize
+import org.libsdl.app.SDLUtils.onNativeSurfaceChanged
+import org.libsdl.app.SDLUtils.onNativeSurfaceCreated
+import org.libsdl.app.SDLUtils.onNativeSurfaceDestroyed
+import org.libsdl.app.SDLUtils.onNativeTouch
 
 /**
  * SDLSurface. This is what we draw on, so we need to know when it's created
@@ -173,7 +173,8 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
             return
         }
 
-        /* If the surface has been previously destroyed by onNativeSurfaceDestroyed, recreate it here */onNativeSurfaceChanged()
+        /* If the surface has been previously destroyed by onNativeSurfaceDestroyed, recreate it here */
+        onNativeSurfaceChanged()
 
         /* Surface is ready */mIsSurfaceReady = true
         SDLActivity.mNextNativeState = SDLActivity.NativeState.RESUMED

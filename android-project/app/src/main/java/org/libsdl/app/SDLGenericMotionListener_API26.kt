@@ -6,6 +6,9 @@ import android.view.MotionEvent
 import android.view.View
 import androidx.annotation.RequiresApi
 import org.libsdl.app.SDLControllerManager.handleJoystickMotionEvent
+import org.libsdl.app.SDLUtils.contentView
+import org.libsdl.app.SDLUtils.isDeXMode
+import org.libsdl.app.SDLUtils.onNativeMouse
 
 internal class SDLGenericMotionListener_API26 : SDLGenericMotionListener_API24() {
     // Generic Motion (mouse hover, joystick...) events go here
@@ -22,14 +25,14 @@ internal class SDLGenericMotionListener_API26 : SDLGenericMotionListener_API24()
                     MotionEvent.ACTION_SCROLL -> {
                         x = event.getAxisValue(MotionEvent.AXIS_HSCROLL, 0)
                         y = event.getAxisValue(MotionEvent.AXIS_VSCROLL, 0)
-                        SDLActivity.onNativeMouse(0, action, x, y, false)
+                        onNativeMouse(0, action, x, y, false)
                         return true
                     }
 
                     MotionEvent.ACTION_HOVER_MOVE -> {
                         x = event.getX(0)
                         y = event.getY(0)
-                        SDLActivity.onNativeMouse(0, action, x, y, false)
+                        onNativeMouse(0, action, x, y, false)
                         return true
                     }
 
@@ -43,14 +46,14 @@ internal class SDLGenericMotionListener_API26 : SDLGenericMotionListener_API24()
                     MotionEvent.ACTION_SCROLL -> {
                         x = event.getAxisValue(MotionEvent.AXIS_HSCROLL, 0)
                         y = event.getAxisValue(MotionEvent.AXIS_VSCROLL, 0)
-                        SDLActivity.onNativeMouse(0, action, x, y, false)
+                        onNativeMouse(0, action, x, y, false)
                         return true
                     }
 
                     MotionEvent.ACTION_HOVER_MOVE -> {
                         x = event.getX(0)
                         y = event.getY(0)
-                        SDLActivity.onNativeMouse(0, action, x, y, true)
+                        onNativeMouse(0, action, x, y, true)
                         return true
                     }
 
@@ -66,7 +69,7 @@ internal class SDLGenericMotionListener_API26 : SDLGenericMotionListener_API24()
     }
 
     override fun supportsRelativeMouse(): Boolean {
-        return !SDLActivity.isDeXMode || Build.VERSION.SDK_INT >= 27
+        return !isDeXMode || Build.VERSION.SDK_INT >= 27
     }
 
     override fun inRelativeMode(): Boolean {
@@ -75,11 +78,11 @@ internal class SDLGenericMotionListener_API26 : SDLGenericMotionListener_API24()
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun setRelativeMouseEnabled(enabled: Boolean): Boolean {
-        return if (!SDLActivity.isDeXMode || Build.VERSION.SDK_INT >= 27) {
+        return if (!isDeXMode || Build.VERSION.SDK_INT >= 27) {
             if (enabled) {
-                SDLActivity.contentView?.requestPointerCapture()
+                contentView?.requestPointerCapture()
             } else {
-                SDLActivity.contentView?.releasePointerCapture()
+                contentView?.releasePointerCapture()
             }
             mRelativeModeEnabled = enabled
             true
@@ -90,8 +93,8 @@ internal class SDLGenericMotionListener_API26 : SDLGenericMotionListener_API24()
 
     @RequiresApi(Build.VERSION_CODES.O)
     override fun reclaimRelativeMouseModeIfNeeded() {
-        if (mRelativeModeEnabled && !SDLActivity.isDeXMode) {
-            SDLActivity.contentView?.requestPointerCapture()
+        if (mRelativeModeEnabled && !isDeXMode) {
+            contentView?.requestPointerCapture()
         }
     }
 

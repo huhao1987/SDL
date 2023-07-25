@@ -6,6 +6,8 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
+import org.libsdl.app.SDLUtils.handleKeyEvent
+import org.libsdl.app.SDLUtils.onNativeKeyboardFocusLost
 
 /* This is a fake invisible editor view that receives the input and defines the
  * pan&scan region
@@ -24,7 +26,7 @@ class DummyEdit(context: Context?) : View(context), View.OnKeyListener {
     }
 
     override fun onKey(v: View, keyCode: Int, event: KeyEvent): Boolean {
-        return SDLActivity.handleKeyEvent(v, keyCode, event, ic)
+        return handleKeyEvent(v, keyCode, event, ic)
     }
 
     //
@@ -37,7 +39,7 @@ class DummyEdit(context: Context?) : View(context), View.OnKeyListener {
         // FIXME: An even more effective way would be if Android provided this out of the box, but where would the fun be in that :)
         if (event.action == KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_BACK) {
             if (SDLActivity.mTextEdit != null && SDLActivity.mTextEdit!!.visibility == VISIBLE) {
-                SDLActivity.onNativeKeyboardFocusLost()
+                onNativeKeyboardFocusLost()
             }
         }
         return super.onKeyPreIme(keyCode, event)

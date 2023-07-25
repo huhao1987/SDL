@@ -3,6 +3,7 @@ package org.libsdl.app
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.view.View
+import org.libsdl.app.SDLUtils.onNativeMouse
 
 internal open class SDLGenericMotionListener_API24 : SDLGenericMotionListener_API12() {
     // Generic Motion (mouse hover, joystick...) events go here
@@ -16,7 +17,7 @@ internal open class SDLGenericMotionListener_API24 : SDLGenericMotionListener_AP
                 if (action == MotionEvent.ACTION_HOVER_MOVE) {
                     val x = event.getAxisValue(MotionEvent.AXIS_RELATIVE_X)
                     val y = event.getAxisValue(MotionEvent.AXIS_RELATIVE_Y)
-                    SDLActivity.onNativeMouse(0, action, x, y, true)
+                    onNativeMouse(0, action, x, y, true)
                     return true
                 }
             }

@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.ClipboardManager.OnPrimaryClipChangedListener
 import android.content.Context
 import org.libsdl.app.SDL.getContext
+import org.libsdl.app.SDLUtils.onNativeClipboardChanged
 
 class SDLClipboardHandler : OnPrimaryClipChangedListener {
     protected var mClipMgr: ClipboardManager
@@ -40,6 +41,6 @@ class SDLClipboardHandler : OnPrimaryClipChangedListener {
     }
 
     override fun onPrimaryClipChanged() {
-        SDLActivity.onNativeClipboardChanged()
+        onNativeClipboardChanged()
     }
 }

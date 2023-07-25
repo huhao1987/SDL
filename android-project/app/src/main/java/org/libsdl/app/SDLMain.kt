@@ -2,7 +2,7 @@ package org.libsdl.app
 
 import android.os.Process
 import android.util.Log
-import org.libsdl.app.SDLActivity.Companion.nativeRunMain
+import org.libsdl.app.SDLUtils.nativeRunMain
 
 /**
  * Simple runnable to start the SDL application

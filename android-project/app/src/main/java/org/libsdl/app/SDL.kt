@@ -11,7 +11,7 @@ object SDL {
     // so it can call into the Java classes
     @JvmStatic
     fun setupJNI() {
-        SDLActivity.nativeSetupJNI()
+        SDLUtils.nativeSetupJNI()
         SDLAudioManager.nativeSetupJNI()
         nativeSetupJNI()
     }

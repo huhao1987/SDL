@@ -5,6 +5,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.View.OnGenericMotionListener
 import org.libsdl.app.SDLControllerManager.handleJoystickMotionEvent
+import org.libsdl.app.SDLUtils.onNativeMouse
 
 open class SDLGenericMotionListener_API12 : OnGenericMotionListener {
     // Generic Motion (mouse hover, joystick...) events go here
@@ -20,14 +21,14 @@ open class SDLGenericMotionListener_API12 : OnGenericMotionListener {
                     MotionEvent.ACTION_SCROLL -> {
                         x = event.getAxisValue(MotionEvent.AXIS_HSCROLL, 0)
                         y = event.getAxisValue(MotionEvent.AXIS_VSCROLL, 0)
-                        SDLActivity.onNativeMouse(0, action, x, y, false)
+                        onNativeMouse(0, action, x, y, false)
                         return true
                     }
 
                     MotionEvent.ACTION_HOVER_MOVE -> {
                         x = event.getX(0)
                         y = event.getY(0)
-                        SDLActivity.onNativeMouse(0, action, x, y, false)
+                        onNativeMouse(0, action, x, y, false)
                         return true
                     }
 
