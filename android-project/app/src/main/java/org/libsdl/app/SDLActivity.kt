@@ -36,6 +36,7 @@ import org.libsdl.app.SDL.getContext
 import org.libsdl.app.SDL.loadLibrary
 import org.libsdl.app.SDL.setContext
 import org.libsdl.app.SDL.setupJNI
+import org.libsdl.app.SDLUtils.COMMAND_CHANGE_WINDOW_STYLE
 import org.libsdl.app.SDLUtils.handleNativeState
 import org.libsdl.app.SDLUtils.mSDLThread
 import org.libsdl.app.SDLUtils.motionListener
@@ -399,89 +400,6 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
      */
     protected fun onUnhandledMessage(command: Int, param: Any?): Boolean {
         return false
-    }
-
-    /**
-     * A Handler class for Messages from native SDL applications.
-     * It uses current Activities as target (e.g. for the title).
-     * static to prevent implicit references to enclosing object.
-     */
-    protected class SDLCommandHandler : Handler() {
-        override fun handleMessage(msg: Message) {
-            val context = getContext()
-            if (context == null) {
-                Log.e(TAG, "error handling message, getContext() returned null")
-                return
-            }
-            when (msg.arg1) {
-                COMMAND_CHANGE_TITLE -> if (context is Activity) {
-                    context.title = msg.obj as String
-                } else {
-                    Log.e(TAG, "error handling message, getContext() returned no Activity")
-                }
-
-                COMMAND_CHANGE_WINDOW_STYLE -> if (Build.VERSION.SDK_INT >= 19) {
-                    if (context is Activity) {
-                        val window = context.window
-                        if (window != null) {
-                            if (msg.obj is Int && msg.obj as Int != 0) {
-                                val flags = View.SYSTEM_UI_FLAG_FULLSCREEN or
-                                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                                        View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.INVISIBLE
-                                window.decorView.systemUiVisibility = flags
-                                window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-                                window.clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN)
-                                mFullscreenModeActive = true
-                            } else {
-                                val flags =
-                                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_VISIBLE
-                                window.decorView.systemUiVisibility = flags
-                                window.addFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN)
-                                window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-                                mFullscreenModeActive = false
-                            }
-                        }
-                    } else {
-                        Log.e(TAG, "error handling message, getContext() returned no Activity")
-                    }
-                }
-
-                COMMAND_TEXTEDIT_HIDE -> if (mTextEdit != null) {
-                    // Note: On some devices setting view to GONE creates a flicker in landscape.
-                    // Setting the View's sizes to 0 is similar to GONE but without the flicker.
-                    // The sizes will be set to useful values when the keyboard is shown again.
-                    mTextEdit!!.layoutParams = RelativeLayout.LayoutParams(0, 0)
-                    val imm = context.getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-                    imm.hideSoftInputFromWindow(mTextEdit!!.windowToken, 0)
-                    mScreenKeyboardShown = false
-                    mSurface!!.requestFocus()
-                }
-
-                COMMAND_SET_KEEP_SCREEN_ON -> {
-                    if (context is Activity) {
-                        val window = context.window
-                        if (window != null) {
-                            if (msg.obj is Int && msg.obj as Int != 0) {
-                                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                            } else {
-                                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-                            }
-                        }
-                    }
-                }
-
-                else -> if (context is SDLActivity && !context.onUnhandledMessage(
-                        msg.arg1,
-                        msg.obj
-                    )
-                ) {
-                    Log.e(TAG, "error handling message, command is " + msg.arg1)
-                }
-            }
-        }
     }
 
     // Handler for the messages
@@ -1032,12 +950,7 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
 
 
 
-        // Messages from the SDLMain thread
-        const val COMMAND_CHANGE_TITLE = 1
-        const val COMMAND_CHANGE_WINDOW_STYLE = 2
-        const val COMMAND_TEXTEDIT_HIDE = 3
-        const val COMMAND_SET_KEEP_SCREEN_ON = 5
-        protected const val COMMAND_USER = 0x8000
+
         var mFullscreenModeActive = false
 
 

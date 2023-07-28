@@ -38,6 +38,12 @@ object SDLUtils {
     private const val SDL_SYSTEM_CURSOR_SIZEALL = 9
     private const val SDL_SYSTEM_CURSOR_NO = 10
     private const val SDL_SYSTEM_CURSOR_HAND = 11
+    // Messages from the SDLMain thread
+    const val COMMAND_CHANGE_TITLE = 1
+    const val COMMAND_CHANGE_WINDOW_STYLE = 2
+    const val COMMAND_TEXTEDIT_HIDE = 3
+    const val COMMAND_SET_KEEP_SCREEN_ON = 5
+    const val COMMAND_USER = 0x8000
 
     // This is what SDL runs in. It invokes SDL_main(), eventually
     @JvmField
@@ -150,7 +156,7 @@ object SDLUtils {
     @JvmStatic
     fun setActivityTitle(title: String?): Boolean {
         // Called from SDLMain() thread and can't directly affect the view
-        return SDLActivity.mSingleton!!.sendCommand(SDLActivity.COMMAND_CHANGE_TITLE, title)
+        return SDLActivity.mSingleton!!.sendCommand(COMMAND_CHANGE_TITLE, title)
     }
 
     /**
@@ -159,7 +165,7 @@ object SDLUtils {
     @JvmStatic
     fun setWindowStyle(fullscreen: Boolean) {
         // Called from SDLMain() thread and can't directly affect the view
-        SDLActivity.mSingleton!!.sendCommand(SDLActivity.COMMAND_CHANGE_WINDOW_STYLE, if (fullscreen) 1 else 0)
+        SDLActivity.mSingleton!!.sendCommand(COMMAND_CHANGE_WINDOW_STYLE, if (fullscreen) 1 else 0)
     }
 
     /**
