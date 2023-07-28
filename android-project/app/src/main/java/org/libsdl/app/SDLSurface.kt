@@ -19,6 +19,11 @@ import android.view.SurfaceView
 import android.view.View
 import android.view.View.OnTouchListener
 import android.view.WindowManager
+import androidx.appcompat.app.AppCompatActivity
+import org.libsdl.app.SDLUtils.SDL_ORIENTATION_LANDSCAPE
+import org.libsdl.app.SDLUtils.SDL_ORIENTATION_LANDSCAPE_FLIPPED
+import org.libsdl.app.SDLUtils.SDL_ORIENTATION_PORTRAIT
+import org.libsdl.app.SDLUtils.SDL_ORIENTATION_PORTRAIT_FLIPPED
 import org.libsdl.app.SDLUtils.handleKeyEvent
 import org.libsdl.app.SDLUtils.handleNativeState
 import org.libsdl.app.SDLUtils.motionListener
@@ -38,7 +43,7 @@ import org.libsdl.app.SDLUtils.onNativeTouch
  *
  * Because of this, that's where we set up the SDL thread
  */
-class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callback,
+class SDLSurface(var activity: AppCompatActivity) : SurfaceView(activity), SurfaceHolder.Callback,
     View.OnKeyListener, OnTouchListener, SensorEventListener {
     // Sensors
     protected var mSensorManager: SensorManager
@@ -60,8 +65,8 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
         setOnKeyListener(this)
         setOnTouchListener(this)
         mDisplay =
-            (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
-        mSensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+            (activity.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
+        mSensorManager = activity.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         setOnGenericMotionListener(motionListener)
 
         // Some arbitrary defaults to avoid a potential division by zero
@@ -109,9 +114,6 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
         format: Int, width: Int, height: Int
     ) {
         Log.v("SDL", "surfaceChanged()")
-        if (SDLActivity.mSingleton == null) {
-            return
-        }
         mWidth = width.toFloat()
         mHeight = height.toFloat()
         var nDeviceWidth = width
@@ -125,9 +127,9 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
             }
         } catch (ignored: Exception) {
         }
-        synchronized(SDLActivity.context!!) {
+        synchronized(activity) {
             // In case we're waiting on a size change after going fullscreen, send a notification.
-            (SDLActivity.context as Object).notifyAll()
+            (activity as Object).notifyAll()
         }
         Log.v("SDL", "Window size: " + width + "x" + height)
         Log.v("SDL", "Device size: " + nDeviceWidth + "x" + nDeviceHeight)
@@ -137,7 +139,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
         // Prevent a screen distortion glitch,
         // for instance when the device is in Landscape and a Portrait App is resumed.
         var skip = false
-        val requestedOrientation = SDLActivity.mSingleton!!.requestedOrientation
+        val requestedOrientation = activity.requestedOrientation
         if (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT || requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT) {
             if (mWidth > mHeight) {
                 skip = true
@@ -161,7 +163,7 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
         // Don't skip in MultiWindow.
         if (skip) {
             if (Build.VERSION.SDK_INT >= 24) {
-                if (SDLActivity.mSingleton!!.isInMultiWindowMode) {
+                if (activity.isInMultiWindowMode) {
                     Log.v("SDL", "Don't skip in Multi-Window")
                     skip = false
                 }
@@ -334,31 +336,31 @@ class SDLSurface(context: Context) : SurfaceView(context), SurfaceHolder.Callbac
                 Surface.ROTATION_90 -> {
                     x = -event.values[1]
                     y = event.values[0]
-                    newOrientation = SDLActivity.SDL_ORIENTATION_LANDSCAPE
+                    newOrientation = SDL_ORIENTATION_LANDSCAPE
                 }
 
                 Surface.ROTATION_270 -> {
                     x = event.values[1]
                     y = -event.values[0]
-                    newOrientation = SDLActivity.SDL_ORIENTATION_LANDSCAPE_FLIPPED
+                    newOrientation = SDL_ORIENTATION_LANDSCAPE_FLIPPED
                 }
 
                 Surface.ROTATION_180 -> {
                     x = -event.values[0]
                     y = -event.values[1]
-                    newOrientation = SDLActivity.SDL_ORIENTATION_PORTRAIT_FLIPPED
+                    newOrientation = SDL_ORIENTATION_PORTRAIT_FLIPPED
                 }
 
                 Surface.ROTATION_0 -> {
                     x = event.values[0]
                     y = event.values[1]
-                    newOrientation = SDLActivity.SDL_ORIENTATION_PORTRAIT
+                    newOrientation = SDL_ORIENTATION_PORTRAIT
                 }
 
                 else -> {
                     x = event.values[0]
                     y = event.values[1]
-                    newOrientation = SDLActivity.SDL_ORIENTATION_PORTRAIT
+                    newOrientation = SDL_ORIENTATION_PORTRAIT
                 }
             }
             if (newOrientation != SDLActivity.mCurrentOrientation) {

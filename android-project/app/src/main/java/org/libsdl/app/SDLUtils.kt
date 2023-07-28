@@ -1,29 +1,44 @@
 package org.libsdl.app
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.app.UiModeManager
 import android.content.Context
+import android.content.DialogInterface
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Color
+import android.graphics.PorterDuff
 import android.hardware.Sensor
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
+import android.os.Handler
 import android.util.DisplayMetrics
 import android.util.Log
+import android.util.SparseArray
+import android.view.Gravity
 import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.PointerIcon
 import android.view.Surface
 import android.view.View
+import android.view.WindowManager
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.RelativeLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 
 object SDLUtils {
     private val TAG = "SDLUtils:"
+
     // Cursor types
     // private static final int SDL_SYSTEM_CURSOR_NONE = -1;
     private const val SDL_SYSTEM_CURSOR_ARROW = 0
@@ -38,17 +53,60 @@ object SDLUtils {
     private const val SDL_SYSTEM_CURSOR_SIZEALL = 9
     private const val SDL_SYSTEM_CURSOR_NO = 10
     private const val SDL_SYSTEM_CURSOR_HAND = 11
+
     // Messages from the SDLMain thread
     const val COMMAND_CHANGE_TITLE = 1
     const val COMMAND_CHANGE_WINDOW_STYLE = 2
     const val COMMAND_TEXTEDIT_HIDE = 3
     const val COMMAND_SET_KEEP_SCREEN_ON = 5
     const val COMMAND_USER = 0x8000
+    const val HEIGHT_PADDING = 15
+
+    const val SDL_ORIENTATION_UNKNOWN = 0
+    const val SDL_ORIENTATION_LANDSCAPE = 1
+    const val SDL_ORIENTATION_LANDSCAPE_FLIPPED = 2
+    const val SDL_ORIENTATION_PORTRAIT = 3
+    const val SDL_ORIENTATION_PORTRAIT_FLIPPED = 4
+
+    val currentOrientation: Int
+        get() {
+            var result = SDL_ORIENTATION_UNKNOWN
+            val activity = SDLActivity.context as Activity? ?: return result
+            val display = activity.windowManager.defaultDisplay
+            when (display.rotation) {
+                Surface.ROTATION_0 -> result = SDL_ORIENTATION_PORTRAIT
+                Surface.ROTATION_90 -> result = SDL_ORIENTATION_LANDSCAPE
+                Surface.ROTATION_180 -> result = SDL_ORIENTATION_PORTRAIT_FLIPPED
+                Surface.ROTATION_270 -> result = SDL_ORIENTATION_LANDSCAPE_FLIPPED
+            }
+            return result
+        }
+
+    val mainSharedObject: String
+        /**
+         * This method returns the name of the shared object with the application entry point
+         * It can be overridden by derived classes.
+         */
+        get() {
+            val library: String
+            library = if (libraries.size > 0) {
+                "lib" + libraries[libraries.size - 1] + ".so"
+            } else {
+                "libmain.so"
+            }
+            return SDLActivity.context!!.applicationInfo.nativeLibraryDir + "/" + library
+        }
+    val mainFunction: String
+        /**
+         * This method returns the name of the application entry point
+         * It can be overridden by derived classes.
+         */
+        get() = "SDL_main"
 
     // This is what SDL runs in. It invokes SDL_main(), eventually
     @JvmField
     var mSDLThread: Thread? = null
-    
+
     // C functions we call
     @JvmStatic
     external fun nativeGetVersion(): String
@@ -150,13 +208,73 @@ object SDLUtils {
     @JvmStatic
     external fun onNativeLocaleChanged()
 
+
+    // Handler for the messages
+    var commandHandler: Handler = SDLCommandHandler()
+
+    // Send a message from the SDLMain thread
+    fun sendCommand(command: Int, data: Any?): Boolean {
+        val msg = commandHandler.obtainMessage()
+        msg.arg1 = command
+        msg.obj = data
+        val result = commandHandler.sendMessage(msg)
+        if (Build.VERSION.SDK_INT >= 19) {
+            if (command == COMMAND_CHANGE_WINDOW_STYLE) {
+                // Ensure we don't return until the resize has actually happened,
+                // or 500ms have passed.
+                var bShouldWait = false
+                if (data is Int) {
+                    // Let's figure out if we're already laid out fullscreen or not.
+                    val display =
+                        (context?.getSystemService(AppCompatActivity.WINDOW_SERVICE) as WindowManager).defaultDisplay
+                    val realMetrics = DisplayMetrics()
+                    display.getRealMetrics(realMetrics)
+                    val bFullscreenLayout =
+                        realMetrics.widthPixels == SDLActivity.mSurface!!.width && realMetrics.heightPixels == SDLActivity.mSurface!!.height
+                    bShouldWait = if (data == 1) {
+                        // If we aren't laid out fullscreen or actively in fullscreen mode already, we're going
+                        // to change size and should wait for surfaceChanged() before we return, so the size
+                        // is right back in native code.  If we're already laid out fullscreen, though, we're
+                        // not going to change size even if we change decor modes, so we shouldn't wait for
+                        // surfaceChanged() -- which may not even happen -- and should return immediately.
+                        !bFullscreenLayout
+                    } else {
+                        // If we're laid out fullscreen (even if the status bar and nav bar are present),
+                        // or are actively in fullscreen, we're going to change size and should wait for
+                        // surfaceChanged before we return, so the size is right back in native code.
+                        bFullscreenLayout
+                    }
+                }
+                if (bShouldWait && context != null) {
+                    // We'll wait for the surfaceChanged() method, which will notify us
+                    // when called.  That way, we know our current size is really the
+                    // size we need, instead of grabbing a size that's still got
+                    // the navigation and/or status bars before they're hidden.
+                    //
+                    // We'll wait for up to half a second, because some devices
+                    // take a surprisingly long time for the surface resize, but
+                    // then we'll just give up and return.
+                    //
+                    synchronized(context!!) {
+                        try {
+                            (context as Object).wait(500)
+                        } catch (ie: InterruptedException) {
+                            ie.printStackTrace()
+                        }
+                    }
+                }
+            }
+        }
+        return result
+    }
+
     /**
      * This method is called by SDL using JNI.
      */
     @JvmStatic
     fun setActivityTitle(title: String?): Boolean {
         // Called from SDLMain() thread and can't directly affect the view
-        return SDLActivity.mSingleton!!.sendCommand(COMMAND_CHANGE_TITLE, title)
+        return sendCommand(COMMAND_CHANGE_TITLE, title)
     }
 
     /**
@@ -165,7 +283,71 @@ object SDLUtils {
     @JvmStatic
     fun setWindowStyle(fullscreen: Boolean) {
         // Called from SDLMain() thread and can't directly affect the view
-        SDLActivity.mSingleton!!.sendCommand(COMMAND_CHANGE_WINDOW_STYLE, if (fullscreen) 1 else 0)
+        sendCommand(COMMAND_CHANGE_WINDOW_STYLE, if (fullscreen) 1 else 0)
+    }
+
+    /**
+     * This can be overridden
+     */
+    fun setOrientationBis(w: Int, h: Int, resizable: Boolean, hint: String) {
+        var orientation_landscape = -1
+        var orientation_portrait = -1
+
+        /* If set, hint "explicitly controls which UI orientations are allowed". */if (hint.contains(
+                "LandscapeRight"
+            ) && hint.contains("LandscapeLeft")
+        ) {
+            orientation_landscape = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        } else if (hint.contains("LandscapeRight")) {
+            orientation_landscape = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        } else if (hint.contains("LandscapeLeft")) {
+            orientation_landscape = ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE
+        }
+        if (hint.contains("Portrait") && hint.contains("PortraitUpsideDown")) {
+            orientation_portrait = ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+        } else if (hint.contains("Portrait")) {
+            orientation_portrait = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else if (hint.contains("PortraitUpsideDown")) {
+            orientation_portrait = ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT
+        }
+        val is_landscape_allowed = orientation_landscape != -1
+        val is_portrait_allowed = orientation_portrait != -1
+        val req: Int /* Requested orientation */
+
+        /* No valid hint, nothing is explicitly allowed */req =
+            if (!is_portrait_allowed && !is_landscape_allowed) {
+                if (resizable) {
+                    /* All orientations are allowed */
+                    ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                } else {
+                    /* Fixed window and nothing specified. Get orientation from w/h of created window */
+                    if (w > h) ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT
+                }
+            } else {
+                /* At least one orientation is allowed */
+                if (resizable) {
+                    if (is_portrait_allowed && is_landscape_allowed) {
+                        /* hint allows both landscape and portrait, promote to full sensor */
+                        ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                    } else {
+                        /* Use the only one allowed "orientation" */
+                        if (is_landscape_allowed) orientation_landscape else orientation_portrait
+                    }
+                } else {
+                    /* Fixed window and both orientations are allowed. Choose one. */
+                    if (is_portrait_allowed && is_landscape_allowed) {
+                        if (w > h) orientation_landscape else orientation_portrait
+                    } else {
+                        /* Use the only one allowed "orientation" */
+                        if (is_landscape_allowed) orientation_landscape else orientation_portrait
+                    }
+                }
+            }
+        Log.v(
+            TAG,
+            "setOrientation() requestedOrientation=$req width=$w height=$h resizable=$resizable hint=$hint"
+        )
+        (context as AppCompatActivity).requestedOrientation = req
     }
 
     /**
@@ -175,9 +357,19 @@ object SDLUtils {
      */
     @JvmStatic
     fun setOrientation(w: Int, h: Int, resizable: Boolean, hint: String) {
-        if (SDLActivity.mSingleton != null) {
-            SDLActivity.mSingleton!!.setOrientationBis(w, h, resizable, hint)
-        }
+            setOrientationBis(w, h, resizable, hint)
+    }
+
+    /**
+     * This method is called by SDL if SDL did not handle a message itself.
+     * This happens if a received message contains an unsupported command.
+     * Method can be overwritten to handle Messages in a different class.
+     * @param command the command of the message.
+     * @param param the parameter of the message. May be null.
+     * @return if the message was handled in overridden method.
+     */
+    fun onUnhandledMessage(command: Int, param: Any?): Boolean {
+        return false
     }
 
     /**
@@ -185,13 +377,10 @@ object SDLUtils {
      */
     @JvmStatic
     fun minimizeWindow() {
-        if (SDLActivity.mSingleton == null) {
-            return
-        }
         val startMain = Intent(Intent.ACTION_MAIN)
         startMain.addCategory(Intent.CATEGORY_HOME)
         startMain.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        SDLActivity.mSingleton!!.startActivity(startMain)
+        context?.startActivity(startMain)
     }
 
     /**
@@ -199,23 +388,16 @@ object SDLUtils {
      */
     @JvmStatic
     fun shouldMinimizeOnFocusLoss(): Boolean {
-        /*
     if (Build.VERSION.SDK_INT >= 24) {
-        if (mSingleton == null) {
+        if(context == null) {
             return true;
         }
-
-        if (mSingleton.isInMultiWindowMode()) {
-            return false;
-        }
-
-        if (mSingleton.isInPictureInPictureMode()) {
-            return false;
+        else{
+            if((context as AppCompatActivity).isInMultiWindowMode()
+                ||(context as AppCompatActivity).isInPictureInPictureMode())
+                return false
         }
     }
-
-    return true;
-*/
         return false
     }
 
@@ -232,7 +414,8 @@ object SDLUtils {
                 return false
             }
             val imm =
-                SDL.getContext()!!.getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
+                SDL.getContext()!!
+                    .getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
             return imm.isAcceptingText
         }
 
@@ -267,11 +450,8 @@ object SDLUtils {
      * This method is called by SDL using JNI.
      */
     @JvmStatic
-    fun sendMessage(command: Int, param: Int): Boolean {
-        return if (SDLActivity.mSingleton == null) {
-            false
-        } else SDLActivity.mSingleton!!.sendCommand(command, param)
-    }
+    fun sendMessage(command: Int, param: Int): Boolean = sendCommand(command, param)
+
 
     @JvmStatic
     val context: Context?
@@ -286,7 +466,8 @@ object SDLUtils {
          * This method is called by SDL using JNI.
          */
         get() {
-            val uiModeManager = context!!.getSystemService(AppCompatActivity.UI_MODE_SERVICE) as UiModeManager
+            val uiModeManager =
+                context!!.getSystemService(AppCompatActivity.UI_MODE_SERVICE) as UiModeManager
             if (uiModeManager.currentModeType == Configuration.UI_MODE_TYPE_TELEVISION) {
                 return true
             }
@@ -297,14 +478,23 @@ object SDLUtils {
                 true
             } else Build.MANUFACTURER == "Amlogic" && Build.MODEL.startsWith("TV")
         }
+    var mFullscreenModeActive = false
 
+    val diagonal: Double
+        get() {
+            val metrics = DisplayMetrics()
+            (context as AppCompatActivity).windowManager.defaultDisplay.getMetrics(metrics)
+            val dWidthInches = metrics.widthPixels / metrics.xdpi.toDouble()
+            val dHeightInches = metrics.heightPixels / metrics.ydpi.toDouble()
+            return Math.sqrt(dWidthInches * dWidthInches + dHeightInches * dHeightInches)
+        }
     @JvmStatic
     val isTablet: Boolean
         /**
          * This method is called by SDL using JNI.
          */
         get() =// If our diagonal size is seven inches or greater, we consider ourselves a tablet.
-            SDLActivity.diagonal >= 7.0
+            diagonal >= 7.0
 
     @JvmStatic
     val isChromebook: Boolean
@@ -379,8 +569,8 @@ object SDLUtils {
     @JvmStatic
     fun showTextInput(x: Int, y: Int, w: Int, h: Int): Boolean {
         // Transfer the task to the main thread as a Runnable
-        return SDLActivity.mSingleton!!.commandHandler.post(
-            SDLActivity.ShowTextInputTask(
+        return commandHandler.post(
+            ShowTextInputTask(
                 x,
                 y,
                 w,
@@ -388,6 +578,37 @@ object SDLUtils {
             )
         )
     }
+
+    internal class ShowTextInputTask(var x: Int, var y: Int, var w: Int, var h: Int) : Runnable {
+        init {
+
+            /* Minimum size of 1 pixel, so it takes focus. */if (w <= 0) {
+                w = 1
+            }
+            if (h + HEIGHT_PADDING <= 0) {
+                h = 1 - HEIGHT_PADDING
+            }
+        }
+
+        override fun run() {
+            val params = RelativeLayout.LayoutParams(w, h + HEIGHT_PADDING)
+            params.leftMargin = x
+            params.topMargin = y
+            if (SDLActivity.mTextEdit == null) {
+                SDLActivity.mTextEdit = DummyEdit(SDL.getContext())
+                SDLActivity.mLayout!!.addView(SDLActivity.mTextEdit, params)
+            } else {
+                SDLActivity.mTextEdit!!.layoutParams = params
+            }
+            SDLActivity.mTextEdit!!.visibility = View.VISIBLE
+            SDLActivity.mTextEdit!!.requestFocus()
+            val imm = SDL.getContext()!!
+                .getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(SDLActivity.mTextEdit, 0)
+            SDLActivity.mScreenKeyboardShown = true
+        }
+    }
+
     @JvmStatic
     fun handleKeyEvent(v: View?, keyCode: Int, event: KeyEvent, ic: InputConnection?): Boolean {
         val deviceId = event.deviceId
@@ -426,7 +647,7 @@ object SDLUtils {
         }
         if (source and InputDevice.SOURCE_KEYBOARD == InputDevice.SOURCE_KEYBOARD) {
             if (event.action == KeyEvent.ACTION_DOWN) {
-                if (SDLActivity.isTextInputEvent(event)) {
+                if (isTextInputEvent(event)) {
                     ic?.commitText(event.unicodeChar.toChar().toString(), 1)
                         ?: SDLInputConnection.nativeCommitText(
                             event.unicodeChar.toChar().toString(), 1
@@ -594,7 +815,8 @@ object SDLUtils {
         }
         if (Build.VERSION.SDK_INT >= 24) {
             try {
-                SDLActivity.mSurface!!.pointerIcon = PointerIcon.getSystemIcon(SDL.getContext()!!, cursor_type)
+                SDLActivity.mSurface!!.pointerIcon =
+                    PointerIcon.getSystemIcon(SDL.getContext()!!, cursor_type)
             } catch (e: Exception) {
                 return false
             }
@@ -634,7 +856,7 @@ object SDLUtils {
                 flags or Intent.FLAG_ACTIVITY_CLEAR_WHEN_TASK_RESET
             }
             i.addFlags(flags)
-            SDLActivity.mSingleton!!.startActivity(i)
+            context?.startActivity(i)
         } catch (ex: Exception) {
             return -1
         }
@@ -652,47 +874,23 @@ object SDLUtils {
         xOffset: Int,
         yOffset: Int
     ): Int {
-        if (null == SDLActivity.mSingleton) {
-            return -1
-        }
         try {
-            class OneShotTask(
-                var mMessage: String,
-                var mDuration: Int,
-                var mGravity: Int,
-                var mXOffset: Int,
-                var mYOffset: Int
-            ) : Runnable {
-                override fun run() {
-                    try {
-                        val toast = Toast.makeText(SDLActivity.mSingleton, mMessage, mDuration)
-                        if (mGravity >= 0) {
-                            toast.setGravity(mGravity, mXOffset, mYOffset)
-                        }
-                        toast.show()
-                    } catch (ex: Exception) {
-                        Log.e(TAG, ex.message!!)
-                    }
-                }
+            val toast = Toast.makeText(context, message, duration)
+            if (gravity >= 0) {
+                toast.setGravity(gravity, xOffset, yOffset)
             }
-            SDLActivity.mSingleton!!.runOnUiThread(
-                OneShotTask(
-                    message,
-                    duration,
-                    gravity,
-                    xOffset,
-                    yOffset
-                )
-            )
+            toast.show()
         } catch (ex: Exception) {
-            return -1
+            Log.e(TAG, ex.message!!)
+            return 1
         }
         return 0
     }
+
     // Called by JNI from SDL.
     @JvmStatic
     fun manualBackButton() {
-        SDLActivity.mSingleton!!.pressBackButton()
+        (context as AppCompatActivity).onBackPressed()
     }
 
     /* Transition to next state */
@@ -728,7 +926,7 @@ object SDLUtils {
                     // This is the entry point to the C app.
                     // Start up the C app thread and enable sensor input for the first time
                     // FIXME: Why aren't we enabling sensor input at start?
-                    mSDLThread = Thread(SDLMain(), "SDLThread")
+                    mSDLThread = Thread(SDLMain(context as AppCompatActivity), "SDLThread")
                     SDLActivity.mSurface!!.enableSensor(Sensor.TYPE_ACCELEROMETER, true)
                     mSDLThread!!.start()
 
@@ -740,6 +938,250 @@ object SDLUtils {
                 SDLActivity.mCurrentNativeState = SDLActivity.mNextNativeState
             }
         }
+    }
+
+    /**
+     * This method is called by SDL before loading the native shared libraries.
+     * It can be overridden to provide names of shared libraries to be loaded.
+     * The default implementation returns the defaults. It never returns null.
+     * An array returned by a new implementation must at least contain "SDL2".
+     * Also keep in mind that the order the libraries are loaded may matter.
+     * @return names of shared libraries to be loaded (e.g. "SDL2", "main").
+     */
+    var libraries = arrayListOf(
+        "SDL2",
+        // "SDL2_image",
+        // "SDL2_mixer",
+        // "SDL2_net",
+        // "SDL2_ttf",
+        "main"
+    )
+
+
+    // Load the .so
+    fun loadLibraries() {
+        for (lib in libraries) {
+            SDL.loadLibrary(lib)
+        }
+    }
+
+    fun initLibraries(context: Context) {
+        runCatching {
+            loadLibraries()
+        }
+            .onFailure {
+                val dlgAlert = AlertDialog.Builder(context)
+                dlgAlert.setMessage(
+                    "An error occurred while trying to start the application. Please try again and/or reinstall."
+                            + System.getProperty("line.separator")
+                            + System.getProperty("line.separator")
+                            + "Error: " + it.message
+                )
+                dlgAlert.setTitle("SDL Error")
+                dlgAlert.setPositiveButton(
+                    "Exit"
+                ) { dialog, id -> // if this button is clicked, close current activity
+                    (context as AppCompatActivity).finish()
+                }
+                dlgAlert.setCancelable(false)
+                dlgAlert.create().show()
+            }
+    }
+
+    fun pauseNativeThread() {
+        SDLActivity.mNextNativeState = SDLActivity.NativeState.PAUSED
+        SDLActivity.mIsResumedCalled = false
+        if (SDLActivity.mBrokenLibraries) {
+            return
+        }
+        handleNativeState()
+    }
+
+    open fun resumeNativeThread() {
+        SDLActivity.mNextNativeState = SDLActivity.NativeState.RESUMED
+        SDLActivity.mIsResumedCalled = true
+        if (SDLActivity.mBrokenLibraries) {
+            return
+        }
+        handleNativeState()
+    }
+
+    // Messagebox
+    /** Result of current messagebox. Also used for blocking the calling thread.  */
+    private val messageboxSelection = IntArray(1)
+
+    /**
+     * This method is called by SDL using JNI.
+     * Shows the messagebox from UI thread and block calling thread.
+     * buttonFlags, buttonIds and buttonTexts must have same length.
+     * @param buttonFlags array containing flags for every button.
+     * @param buttonIds array containing id for every button.
+     * @param buttonTexts array containing text for every button.
+     * @param colors null for default or array of length 5 containing colors.
+     * @return button id or -1.
+     */
+    fun messageboxShowMessageBox(
+        flags: Int,
+        title: String?,
+        message: String?,
+        buttonFlags: IntArray,
+        buttonIds: IntArray,
+        buttonTexts: Array<String?>,
+        colors: IntArray?
+    ): Int {
+        messageboxSelection[0] = -1
+
+        // sanity checks
+        if (buttonFlags.size != buttonIds.size && buttonIds.size != buttonTexts.size) {
+            return -1 // implementation broken
+        }
+
+        // collect arguments for Dialog
+        val args = Bundle()
+        args.putInt("flags", flags)
+        args.putString("title", title)
+        args.putString("message", message)
+        args.putIntArray("buttonFlags", buttonFlags)
+        args.putIntArray("buttonIds", buttonIds)
+        args.putStringArray("buttonTexts", buttonTexts)
+        args.putIntArray("colors", colors)
+        messageboxCreateAndShow(args)
+        // block the calling thread
+        synchronized(messageboxSelection) {
+            try {
+                (SDLActivity.context as Object).wait()
+            } catch (ex: InterruptedException) {
+                ex.printStackTrace()
+                return -1
+            }
+        }
+
+        // return selected value
+        return messageboxSelection[0]
+    }
+
+    fun messageboxCreateAndShow(args: Bundle) {
+
+        // TODO set values from "flags" to messagebox dialog
+
+        // get colors
+        val colors = args.getIntArray("colors")
+        val backgroundColor: Int
+        val textColor: Int
+        val buttonBorderColor: Int
+        val buttonBackgroundColor: Int
+        val buttonSelectedColor: Int
+        if (colors != null) {
+            var i = -1
+            backgroundColor = colors[++i]
+            textColor = colors[++i]
+            buttonBorderColor = colors[++i]
+            buttonBackgroundColor = colors[++i]
+            buttonSelectedColor = colors[++i]
+        } else {
+            backgroundColor = Color.TRANSPARENT
+            textColor = Color.TRANSPARENT
+            buttonBorderColor = Color.TRANSPARENT
+            buttonBackgroundColor = Color.TRANSPARENT
+            buttonSelectedColor = Color.TRANSPARENT
+        }
+        context?.apply {
+            // create dialog with title and a listener to wake up calling thread
+            val dialog = AlertDialog.Builder(this).create()
+            dialog.setTitle(args.getString("title"))
+            dialog.setCancelable(false)
+            dialog.setOnDismissListener { synchronized(messageboxSelection) { (messageboxSelection as Object).notify() } }
+
+            // create text
+            val message = TextView(this)
+            message.gravity = Gravity.CENTER
+            message.text = args.getString("message")
+            if (textColor != Color.TRANSPARENT) {
+                message.setTextColor(textColor)
+            }
+
+            // create buttons
+            val buttonFlags = args.getIntArray("buttonFlags")
+            val buttonIds = args.getIntArray("buttonIds")
+            val buttonTexts = args.getStringArray("buttonTexts")
+            val mapping = SparseArray<Button>()
+            val buttons = LinearLayout(this)
+            buttons.orientation = LinearLayout.HORIZONTAL
+            buttons.gravity = Gravity.CENTER
+            for (i in buttonTexts!!.indices) {
+                val button = Button(this)
+                val id = buttonIds!![i]
+                button.setOnClickListener {
+                    messageboxSelection[0] = id
+                    dialog.dismiss()
+                }
+                if (buttonFlags!![i] != 0) {
+                    // see SDL_messagebox.h
+                    if (buttonFlags[i] and 0x00000001 != 0) {
+                        mapping.put(KeyEvent.KEYCODE_ENTER, button)
+                    }
+                    if (buttonFlags[i] and 0x00000002 != 0) {
+                        mapping.put(KeyEvent.KEYCODE_ESCAPE, button) /* API 11 */
+                    }
+                }
+                button.text = buttonTexts[i]
+                if (textColor != Color.TRANSPARENT) {
+                    button.setTextColor(textColor)
+                }
+                if (buttonBorderColor != Color.TRANSPARENT) {
+                    // TODO set color for border of messagebox button
+                }
+                if (buttonBackgroundColor != Color.TRANSPARENT) {
+                    val drawable = button.background
+                    if (drawable == null) {
+                        // setting the color this way removes the style
+                        button.setBackgroundColor(buttonBackgroundColor)
+                    } else {
+                        // setting the color this way keeps the style (gradient, padding, etc.)
+                        drawable.setColorFilter(buttonBackgroundColor, PorterDuff.Mode.MULTIPLY)
+                    }
+                }
+                if (buttonSelectedColor != Color.TRANSPARENT) {
+                    // TODO set color for selected messagebox button
+                }
+                buttons.addView(button)
+            }
+
+            // create content
+            val content = LinearLayout(this)
+            content.orientation = LinearLayout.VERTICAL
+            content.addView(message)
+            content.addView(buttons)
+            if (backgroundColor != Color.TRANSPARENT) {
+                content.setBackgroundColor(backgroundColor)
+            }
+
+            // add content to dialog and return
+            dialog.setView(content)
+            dialog.setOnKeyListener(DialogInterface.OnKeyListener { d, keyCode, event ->
+                val button = mapping[keyCode]
+                if (button != null) {
+                    if (event.action == KeyEvent.ACTION_UP) {
+                        button.performClick()
+                    }
+                    return@OnKeyListener true // also for ignored actions
+                }
+                false
+            })
+            dialog.show()
+        }
+    }
+
+
+    open fun getArguments(): Array<String> {
+        return arrayOf()
+    }
+    fun isTextInputEvent(event: KeyEvent): Boolean {
+
+        // Key pressed with Ctrl should be sent as SDL_KEYDOWN/SDL_KEYUP and not SDL_TEXTINPUT
+        return if (event.isCtrlPressed) {
+            false
+        } else event.isPrintingKey || event.keyCode == KeyEvent.KEYCODE_SPACE
     }
     @JvmStatic
     val motionListener: SDLGenericMotionListener_API12?

@@ -14,6 +14,7 @@ import org.libsdl.app.SDLUtils.COMMAND_CHANGE_TITLE
 import org.libsdl.app.SDLUtils.COMMAND_CHANGE_WINDOW_STYLE
 import org.libsdl.app.SDLUtils.COMMAND_SET_KEEP_SCREEN_ON
 import org.libsdl.app.SDLUtils.COMMAND_TEXTEDIT_HIDE
+import org.libsdl.app.SDLUtils.mFullscreenModeActive
 
 class SDLCommandHandler : Handler() {
      private val TAG = "SDLCommandHandler:"
@@ -44,14 +45,14 @@ class SDLCommandHandler : Handler() {
                             window.decorView.systemUiVisibility = flags
                             window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
                             window.clearFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN)
-                            SDLActivity.mFullscreenModeActive = true
+                            mFullscreenModeActive = true
                         } else {
                             val flags =
                                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.SYSTEM_UI_FLAG_VISIBLE
                             window.decorView.systemUiVisibility = flags
                             window.addFlags(WindowManager.LayoutParams.FLAG_FORCE_NOT_FULLSCREEN)
                             window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
-                            SDLActivity.mFullscreenModeActive = false
+                            mFullscreenModeActive = false
                         }
                     }
                 } else {
@@ -83,7 +84,7 @@ class SDLCommandHandler : Handler() {
                 }
             }
 
-            else -> if (context is SDLActivity && !onUnhandledMessage(
+            else -> if (context is AppCompatActivity && !onUnhandledMessage(
                     msg.arg1,
                     msg.obj
                 )
