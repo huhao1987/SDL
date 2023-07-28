@@ -2,6 +2,7 @@ package org.libsdl.app
 
 import android.os.Process
 import android.util.Log
+import org.libsdl.app.SDLUtils.mSDLThread
 import org.libsdl.app.SDLUtils.nativeRunMain
 
 /**
@@ -23,7 +24,7 @@ internal class SDLMain : Runnable {
         Log.v("SDL", "Finished main function")
         if (SDLActivity.mSingleton != null && !SDLActivity.mSingleton!!.isFinishing) {
             // Let's finish the Activity
-            SDLActivity.mSDLThread = null
+            mSDLThread = null
             SDLActivity.mSingleton!!.finish()
         } // else: Activity is already being destroyed
     }

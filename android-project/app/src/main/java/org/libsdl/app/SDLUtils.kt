@@ -39,6 +39,10 @@ object SDLUtils {
     private const val SDL_SYSTEM_CURSOR_NO = 10
     private const val SDL_SYSTEM_CURSOR_HAND = 11
 
+    // This is what SDL runs in. It invokes SDL_main(), eventually
+    @JvmField
+    var mSDLThread: Thread? = null
+    
     // C functions we call
     @JvmStatic
     external fun nativeGetVersion(): String
@@ -701,7 +705,7 @@ object SDLUtils {
 
         // Try a transition to paused state
         if (SDLActivity.mNextNativeState == SDLActivity.NativeState.PAUSED) {
-            if (SDLActivity.mSDLThread != null) {
+            if (mSDLThread != null) {
                 nativePause()
             }
             if (SDLActivity.mSurface != null) {
@@ -714,13 +718,13 @@ object SDLUtils {
         // Try a transition to resumed state
         if (SDLActivity.mNextNativeState == SDLActivity.NativeState.RESUMED) {
             if (SDLActivity.mSurface!!.mIsSurfaceReady && SDLActivity.mHasFocus && SDLActivity.mIsResumedCalled) {
-                if (SDLActivity.mSDLThread == null) {
+                if (mSDLThread == null) {
                     // This is the entry point to the C app.
                     // Start up the C app thread and enable sensor input for the first time
                     // FIXME: Why aren't we enabling sensor input at start?
-                    SDLActivity.mSDLThread = Thread(SDLMain(), "SDLThread")
+                    mSDLThread = Thread(SDLMain(), "SDLThread")
                     SDLActivity.mSurface!!.enableSensor(Sensor.TYPE_ACCELEROMETER, true)
-                    SDLActivity.mSDLThread!!.start()
+                    mSDLThread!!.start()
 
                     // No nativeResume(), don't signal Android_ResumeSem
                 } else {

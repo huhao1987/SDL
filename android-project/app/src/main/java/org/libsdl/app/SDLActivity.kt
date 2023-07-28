@@ -2,18 +2,13 @@ package org.libsdl.app
 
 import android.app.Activity
 import android.app.AlertDialog
-import android.app.UiModeManager
 import android.content.Context
 import android.content.DialogInterface
-import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.PorterDuff
-import android.hardware.Sensor
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -22,7 +17,6 @@ import android.util.DisplayMetrics
 import android.util.Log
 import android.util.SparseArray
 import android.view.Gravity
-import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.PointerIcon
 import android.view.Surface
@@ -30,13 +24,11 @@ import android.view.View
 import android.view.View.OnSystemUiVisibilityChangeListener
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.RelativeLayout
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import org.libsdl.app.HIDDeviceManager.Companion.acquire
 import org.libsdl.app.HIDDeviceManager.Companion.release
@@ -44,20 +36,15 @@ import org.libsdl.app.SDL.getContext
 import org.libsdl.app.SDL.loadLibrary
 import org.libsdl.app.SDL.setContext
 import org.libsdl.app.SDL.setupJNI
-import org.libsdl.app.SDLControllerManager.isDeviceSDLJoystick
-import org.libsdl.app.SDLControllerManager.onNativePadDown
-import org.libsdl.app.SDLControllerManager.onNativePadUp
-import org.libsdl.app.SDLInputConnection.Companion.nativeCommitText
 import org.libsdl.app.SDLUtils.handleNativeState
+import org.libsdl.app.SDLUtils.mSDLThread
 import org.libsdl.app.SDLUtils.motionListener
 import org.libsdl.app.SDLUtils.nativeFocusChanged
 import org.libsdl.app.SDLUtils.nativeGetHintBoolean
 import org.libsdl.app.SDLUtils.nativeGetVersion
 import org.libsdl.app.SDLUtils.nativeLowMemory
-import org.libsdl.app.SDLUtils.nativePause
 import org.libsdl.app.SDLUtils.nativePermissionResult
 import org.libsdl.app.SDLUtils.nativeQuit
-import org.libsdl.app.SDLUtils.nativeResume
 import org.libsdl.app.SDLUtils.nativeSendQuit
 import org.libsdl.app.SDLUtils.onNativeDropFile
 import org.libsdl.app.SDLUtils.onNativeLocaleChanged
@@ -65,7 +52,6 @@ import org.libsdl.app.SDLUtils.onNativeOrientationChanged
 import org.libsdl.app.SDLUtils.setWindowStyle
 import java.util.Hashtable
 import java.util.Locale
-import java.util.Objects
 
 /**
  * SDL Activity
@@ -1006,9 +992,7 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
         var mMotionListener: SDLGenericMotionListener_API12? = null
         var mHIDDeviceManager: HIDDeviceManager? = null
 
-        // This is what SDL runs in. It invokes SDL_main(), eventually
-        @JvmField
-        var mSDLThread: Thread? = null
+
 
 
 
