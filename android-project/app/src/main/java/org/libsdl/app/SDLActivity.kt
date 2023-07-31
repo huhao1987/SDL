@@ -71,7 +71,9 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
         PAUSED
     }
 
-
+    init {
+        SDLUtils.arguments
+    }
     protected fun createSDLSurface(context: Context): SDLSurface {
         return SDLSurface(this)
     }

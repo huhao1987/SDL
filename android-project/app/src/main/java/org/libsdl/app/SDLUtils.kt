@@ -1173,9 +1173,7 @@ object SDLUtils {
     }
 
 
-    open fun getArguments(): Array<String> {
-        return arrayOf()
-    }
+    var arguments : Array<String> = arrayOf()
     fun isTextInputEvent(event: KeyEvent): Boolean {
 
         // Key pressed with Ctrl should be sent as SDL_KEYDOWN/SDL_KEYUP and not SDL_TEXTINPUT

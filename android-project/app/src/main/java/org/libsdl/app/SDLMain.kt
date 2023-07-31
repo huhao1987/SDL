@@ -3,7 +3,7 @@ package org.libsdl.app
 import android.os.Process
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
-import org.libsdl.app.SDLUtils.getArguments
+import org.libsdl.app.SDLUtils.arguments
 import org.libsdl.app.SDLUtils.mSDLThread
 import org.libsdl.app.SDLUtils.mainFunction
 import org.libsdl.app.SDLUtils.mainSharedObject
@@ -17,7 +17,7 @@ internal class SDLMain(var activity: AppCompatActivity) : Runnable {
         // Runs SDL_main()
         val library = mainSharedObject
         val function = mainFunction
-        val arguments = getArguments()
+        val arguments = arguments
         try {
             Process.setThreadPriority(Process.THREAD_PRIORITY_DISPLAY)
         } catch (e: Exception) {
