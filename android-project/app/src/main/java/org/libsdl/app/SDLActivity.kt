@@ -13,7 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 open class SDLActivity : AppCompatActivity() {
     init {
         SDLUtils.arguments
-        SDLUtils.libraries = arrayListOf(
+        SDLUtils.libraries = arrayOf(
             "SDL2",
             // "SDL2_image",
             // "SDL2_mixer",

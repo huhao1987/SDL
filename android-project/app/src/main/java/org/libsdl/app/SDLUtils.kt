@@ -313,13 +313,13 @@ object SDLUtils {
         return this
     }
 
-    fun setLibraries(listofLibries: ArrayList<String>):SDLUtils {
-        libraries = listofLibries
+    fun setLibraries(vararg listofLibries: String):SDLUtils {
+        libraries = listofLibries as Array<String>
         return this
     }
 
-    fun setArguments(listofArguments: Array<String>):SDLUtils{
-        arguments = listofArguments
+    fun setArguments(vararg listofArguments: String):SDLUtils{
+        arguments = listofArguments as Array<String>
         return this
     }
     private val rehideSystemUi = Runnable {
@@ -1074,7 +1074,7 @@ object SDLUtils {
      * Also keep in mind that the order the libraries are loaded may matter.
      * @return names of shared libraries to be loaded (e.g. "SDL2", "main").
      */
-    var libraries = arrayListOf(
+    var libraries = arrayOf(
         "SDL2",
         // "SDL2_image",
         // "SDL2_mixer",
