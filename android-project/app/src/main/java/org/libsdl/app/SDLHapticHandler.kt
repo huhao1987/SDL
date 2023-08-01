@@ -3,7 +3,6 @@ package org.libsdl.app
 import android.content.Context
 import android.os.Vibrator
 import android.view.InputDevice
-import org.libsdl.app.SDL.getContext
 import org.libsdl.app.SDLControllerManager.nativeAddHaptic
 import org.libsdl.app.SDLControllerManager.nativeRemoveHaptic
 
@@ -60,7 +59,7 @@ internal open class SDLHapticHandler {
         }
 
         /* Check VIBRATOR_SERVICE */
-        val vib = getContext()!!.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        val vib = SDLUtils.context?.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
         if (vib != null) {
             hasVibratorService = vib.hasVibrator()
             if (hasVibratorService) {

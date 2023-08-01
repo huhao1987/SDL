@@ -4,14 +4,13 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ClipboardManager.OnPrimaryClipChangedListener
 import android.content.Context
-import org.libsdl.app.SDL.getContext
 import org.libsdl.app.SDLUtils.onNativeClipboardChanged
 
-class SDLClipboardHandler : OnPrimaryClipChangedListener {
+class SDLClipboardHandler(var context: Context) : OnPrimaryClipChangedListener {
     protected var mClipMgr: ClipboardManager
 
     init {
-        mClipMgr = getContext()!!.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        mClipMgr = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         mClipMgr.addPrimaryClipChangedListener(this)
     }
 

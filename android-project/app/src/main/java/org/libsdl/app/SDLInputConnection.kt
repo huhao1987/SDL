@@ -13,7 +13,7 @@ internal class SDLInputConnection(targetView: View?, fullEditor: Boolean) :
     protected var mCommittedText = ""
 
     init {
-        mEditText = EditText(SDL.getContext())
+        mEditText = EditText(SDLUtils.context)
     }
 
     override fun getEditable(): Editable {

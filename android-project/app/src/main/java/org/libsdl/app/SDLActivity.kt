@@ -1,59 +1,30 @@
 package org.libsdl.app
 
-import android.app.Activity
-import android.app.AlertDialog
-import android.content.Context
-import android.content.DialogInterface
-import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.content.res.Configuration
-import android.graphics.Color
-import android.graphics.PorterDuff
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.util.DisplayMetrics
 import android.util.Log
-import android.util.SparseArray
-import android.view.Gravity
 import android.view.KeyEvent
 import android.view.PointerIcon
-import android.view.Surface
 import android.view.View
 import android.view.View.OnSystemUiVisibilityChangeListener
-import android.view.ViewGroup
-import android.view.WindowManager
-import android.view.inputmethod.InputMethodManager
-import android.widget.Button
-import android.widget.LinearLayout
-import android.widget.RelativeLayout
-import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import org.libsdl.app.HIDDeviceManager.Companion.acquire
 import org.libsdl.app.HIDDeviceManager.Companion.release
-import org.libsdl.app.SDL.getContext
-import org.libsdl.app.SDL.loadLibrary
-import org.libsdl.app.SDL.setContext
-import org.libsdl.app.SDL.setupJNI
-import org.libsdl.app.SDLUtils.COMMAND_CHANGE_WINDOW_STYLE
-import org.libsdl.app.SDLUtils.currentOrientation
 import org.libsdl.app.SDLUtils.handleNativeState
 import org.libsdl.app.SDLUtils.initLibraries
-import org.libsdl.app.SDLUtils.libraries
-import org.libsdl.app.SDLUtils.loadLibraries
 import org.libsdl.app.SDLUtils.mFullscreenModeActive
+import org.libsdl.app.SDLUtils.mLayout
 import org.libsdl.app.SDLUtils.mSDLThread
 import org.libsdl.app.SDLUtils.motionListener
 import org.libsdl.app.SDLUtils.nativeFocusChanged
 import org.libsdl.app.SDLUtils.nativeGetHintBoolean
-import org.libsdl.app.SDLUtils.nativeGetVersion
 import org.libsdl.app.SDLUtils.nativeLowMemory
 import org.libsdl.app.SDLUtils.nativePermissionResult
 import org.libsdl.app.SDLUtils.nativeQuit
 import org.libsdl.app.SDLUtils.nativeSendQuit
 import org.libsdl.app.SDLUtils.onNativeDropFile
 import org.libsdl.app.SDLUtils.onNativeLocaleChanged
-import org.libsdl.app.SDLUtils.onNativeOrientationChanged
 import org.libsdl.app.SDLUtils.pauseNativeThread
 import org.libsdl.app.SDLUtils.resumeNativeThread
 import org.libsdl.app.SDLUtils.setWindowStyle
@@ -69,10 +40,6 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
     }
     private val TAG = "SDL"
 
-    protected fun createSDLSurface(): SDLSurface {
-        return SDLSurface(this)
-    }
-
     // Setup
     override fun onCreate(savedInstanceState: Bundle?) {
         Log.v(TAG, "Device: " + Build.DEVICE)
@@ -82,39 +49,15 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
 
         initLibraries(this)
 
-        // Set up JNI
-        setupJNI()
 
         // Initialize state
-        SDL.initialize()
+        SDLUtils.init(this)
 
-        setContext(this)
-        mClipboardHandler = SDLClipboardHandler()
-        mHIDDeviceManager = acquire(this)
-
-        // Set up the surface
-        SDLUtils.mSurface = createSDLSurface()
-        mLayout = RelativeLayout(this)
-        mLayout?.addView(SDLUtils.mSurface)
-
-        // Get our current screen orientation and pass it down.
-        mCurrentOrientation = currentOrientation
-        // Only record current orientation
-        onNativeOrientationChanged(mCurrentOrientation)
-        try {
-            if (Build.VERSION.SDK_INT < 24) {
-                mCurrentLocale = resources.configuration.locale
-            } else {
-                mCurrentLocale = resources.configuration.locales[0]
-            }
-        } catch (ignored: Exception) {
-        }
         setContentView(mLayout)
         setWindowStyle(false)
         window.decorView.setOnSystemUiVisibilityChangeListener(this)
 
         // Get filename from "Open with" of another application
-        val intent = intent
         if (intent != null && intent.data != null) {
             val filename = intent.data!!.path
             if (filename != null) {
@@ -123,7 +66,6 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
             }
         }
     }
-
 
     // Events
     override fun onPause() {
@@ -411,7 +353,7 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
 
         @JvmField
         var mCurrentOrientation = 0
-        protected var mCurrentLocale: Locale? = null
+        var mCurrentLocale: Locale? = null
 
         @JvmField
         var mNextNativeState: SDLUtils.NativeState? = null
@@ -421,10 +363,8 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
         var mBrokenLibraries = true
 
         // Main components
-        var mTextEdit: DummyEdit? = null
-        var mScreenKeyboardShown = false
-        var mLayout: ViewGroup? = null
-        var mClipboardHandler: SDLClipboardHandler? = null
+
+
         var mCursors: Hashtable<Int, PointerIcon>? = null
         var mLastCursorID = 0
         var mMotionListener: SDLGenericMotionListener_API12? = null
@@ -434,9 +374,6 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
         fun initialize() {
             // The static nature of the singleton and Android quirkyness force us to initialize everything here
             // Otherwise, when exiting the app and returning to it, these variables *keep* their pre exit values
-            mTextEdit = null
-            mLayout = null
-            mClipboardHandler = null
             mCursors = Hashtable()
             mLastCursorID = 0
             mSDLThread = null

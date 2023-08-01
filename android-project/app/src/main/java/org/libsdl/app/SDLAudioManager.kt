@@ -14,10 +14,6 @@ object SDLAudioManager {
     internal const val TAG = "SDLAudio"
     internal var mAudioTrack: AudioTrack? = null
     internal var mAudioRecord: AudioRecord? = null
-    fun initialize() {
-        mAudioTrack = null
-        mAudioRecord = null
-    }
 
     // Audio
     internal fun getAudioFormatString(audioFormat: Int): String {

@@ -26,6 +26,7 @@ import android.view.KeyEvent
 import android.view.PointerIcon
 import android.view.Surface
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
@@ -67,7 +68,15 @@ object SDLUtils {
     const val SDL_ORIENTATION_LANDSCAPE_FLIPPED = 2
     const val SDL_ORIENTATION_PORTRAIT = 3
     const val SDL_ORIENTATION_PORTRAIT_FLIPPED = 4
-    
+    var mScreenKeyboardShown = false
+
+    var mTextEdit: DummyEdit? = null
+    var mLayout: ViewGroup? = null
+
+    var mClipboardHandler: SDLClipboardHandler? = null
+    // Handler for the messages
+    var commandHandler: Handler? = null
+
     lateinit var mSurface : SDLSurface
     enum class NativeState {
         INIT,
@@ -212,65 +221,99 @@ object SDLUtils {
 
     @JvmStatic
     external fun onNativeLocaleChanged()
+    fun init(contac: Context){
+        this.context = contac
+        context?.apply {
+            SDLActivity.initialize()
+            SDLControllerManager.initialize()
+
+            mClipboardHandler = SDLClipboardHandler(this)
+            commandHandler = SDLCommandHandler(context)
+            SDLActivity.mHIDDeviceManager = HIDDeviceManager.acquire(this)
+
+            // Set up the surface
+            SDLUtils.mSurface = SDLSurface(this)
+            mLayout = RelativeLayout(this)
+            mLayout?.addView(SDLUtils.mSurface)
+
+            // Get our current screen orientation and pass it down.
+            SDLActivity.mCurrentOrientation = currentOrientation
+            // Only record current orientation
+            onNativeOrientationChanged(SDLActivity.mCurrentOrientation)
+            try {
+                if (Build.VERSION.SDK_INT < 24) {
+                    SDLActivity.mCurrentLocale = resources.configuration.locale
+                } else {
+                    SDLActivity.mCurrentLocale = resources.configuration.locales[0]
+                }
+            } catch (ignored: Exception) {
+            }
+            nativeSetupJNI()
+            SDLAudioManager.nativeSetupJNI()
+            SDLControllerManager.nativeSetupJNI()
+        }
+
+    }
 
 
-    // Handler for the messages
-    var commandHandler: Handler = SDLCommandHandler()
 
     // Send a message from the SDLMain thread
     fun sendCommand(command: Int, data: Any?): Boolean {
-        val msg = commandHandler.obtainMessage()
-        msg.arg1 = command
-        msg.obj = data
-        val result = commandHandler.sendMessage(msg)
-        if (Build.VERSION.SDK_INT >= 19) {
-            if (command == COMMAND_CHANGE_WINDOW_STYLE) {
-                // Ensure we don't return until the resize has actually happened,
-                // or 500ms have passed.
-                var bShouldWait = false
-                if (data is Int) {
-                    // Let's figure out if we're already laid out fullscreen or not.
-                    val display =
-                        (context?.getSystemService(AppCompatActivity.WINDOW_SERVICE) as WindowManager).defaultDisplay
-                    val realMetrics = DisplayMetrics()
-                    display.getRealMetrics(realMetrics)
-                    val bFullscreenLayout =
-                        realMetrics.widthPixels == mSurface.width && realMetrics.heightPixels == mSurface.height
-                    bShouldWait = if (data == 1) {
-                        // If we aren't laid out fullscreen or actively in fullscreen mode already, we're going
-                        // to change size and should wait for surfaceChanged() before we return, so the size
-                        // is right back in native code.  If we're already laid out fullscreen, though, we're
-                        // not going to change size even if we change decor modes, so we shouldn't wait for
-                        // surfaceChanged() -- which may not even happen -- and should return immediately.
-                        !bFullscreenLayout
-                    } else {
-                        // If we're laid out fullscreen (even if the status bar and nav bar are present),
-                        // or are actively in fullscreen, we're going to change size and should wait for
-                        // surfaceChanged before we return, so the size is right back in native code.
-                        bFullscreenLayout
+        val msg = commandHandler?.obtainMessage()
+        msg?.apply {
+            arg1 = command
+            obj = data
+            val result = commandHandler?.sendMessage(this)
+            if (Build.VERSION.SDK_INT >= 19) {
+                if (command == COMMAND_CHANGE_WINDOW_STYLE) {
+                    // Ensure we don't return until the resize has actually happened,
+                    // or 500ms have passed.
+                    var bShouldWait = false
+                    if (data is Int) {
+                        // Let's figure out if we're already laid out fullscreen or not.
+                        val display =
+                            (context?.getSystemService(AppCompatActivity.WINDOW_SERVICE) as WindowManager).defaultDisplay
+                        val realMetrics = DisplayMetrics()
+                        display.getRealMetrics(realMetrics)
+                        val bFullscreenLayout =
+                            realMetrics.widthPixels == mSurface.width && realMetrics.heightPixels == mSurface.height
+                        bShouldWait = if (data == 1) {
+                            // If we aren't laid out fullscreen or actively in fullscreen mode already, we're going
+                            // to change size and should wait for surfaceChanged() before we return, so the size
+                            // is right back in native code.  If we're already laid out fullscreen, though, we're
+                            // not going to change size even if we change decor modes, so we shouldn't wait for
+                            // surfaceChanged() -- which may not even happen -- and should return immediately.
+                            !bFullscreenLayout
+                        } else {
+                            // If we're laid out fullscreen (even if the status bar and nav bar are present),
+                            // or are actively in fullscreen, we're going to change size and should wait for
+                            // surfaceChanged before we return, so the size is right back in native code.
+                            bFullscreenLayout
+                        }
                     }
-                }
-                if (bShouldWait && context != null) {
-                    // We'll wait for the surfaceChanged() method, which will notify us
-                    // when called.  That way, we know our current size is really the
-                    // size we need, instead of grabbing a size that's still got
-                    // the navigation and/or status bars before they're hidden.
-                    //
-                    // We'll wait for up to half a second, because some devices
-                    // take a surprisingly long time for the surface resize, but
-                    // then we'll just give up and return.
-                    //
-                    synchronized(context!!) {
-                        try {
-                            (context as Object).wait(500)
-                        } catch (ie: InterruptedException) {
-                            ie.printStackTrace()
+                    if (bShouldWait && context != null) {
+                        // We'll wait for the surfaceChanged() method, which will notify us
+                        // when called.  That way, we know our current size is really the
+                        // size we need, instead of grabbing a size that's still got
+                        // the navigation and/or status bars before they're hidden.
+                        //
+                        // We'll wait for up to half a second, because some devices
+                        // take a surprisingly long time for the surface resize, but
+                        // then we'll just give up and return.
+                        //
+                        synchronized(context!!) {
+                            try {
+                                (context as Object).wait(500)
+                            } catch (ie: InterruptedException) {
+                                ie.printStackTrace()
+                            }
                         }
                     }
                 }
             }
+            return result?:false
         }
-        return result
+        return false
     }
 
     /**
@@ -412,15 +455,14 @@ object SDLUtils {
          * This method is called by SDL using JNI.
          */
         get() {
-            if (SDLActivity.mTextEdit == null) {
+            if (mTextEdit == null) {
                 return false
             }
-            if (!SDLActivity.mScreenKeyboardShown) {
+            if (!mScreenKeyboardShown) {
                 return false
             }
             val imm =
-                SDL.getContext()!!
-                    .getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
+                context?.getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
             return imm.isAcceptingText
         }
 
@@ -459,11 +501,7 @@ object SDLUtils {
 
 
     @JvmStatic
-    val context: Context?
-        /**
-         * This method is called by SDL using JNI.
-         */
-        get() = SDL.getContext()
+    var context: Context? =null
 
     @JvmStatic
     val isAndroidTV: Boolean
@@ -566,7 +604,7 @@ object SDLUtils {
     @JvmStatic
     val contentView: View?
         // This method is called by SDLControllerManager's API 26 Generic Motion Handler.
-        get() = SDLActivity.mLayout
+        get() = mLayout
 
     /**
      * This method is called by SDL using JNI.
@@ -574,19 +612,18 @@ object SDLUtils {
     @JvmStatic
     fun showTextInput(x: Int, y: Int, w: Int, h: Int): Boolean {
         // Transfer the task to the main thread as a Runnable
-        return commandHandler.post(
+        return commandHandler?.post(
             ShowTextInputTask(
                 x,
                 y,
                 w,
                 h
             )
-        )
+        )?:false
     }
 
     internal class ShowTextInputTask(var x: Int, var y: Int, var w: Int, var h: Int) : Runnable {
         init {
-
             /* Minimum size of 1 pixel, so it takes focus. */if (w <= 0) {
                 w = 1
             }
@@ -599,18 +636,17 @@ object SDLUtils {
             val params = RelativeLayout.LayoutParams(w, h + HEIGHT_PADDING)
             params.leftMargin = x
             params.topMargin = y
-            if (SDLActivity.mTextEdit == null) {
-                SDLActivity.mTextEdit = DummyEdit(SDL.getContext())
-                SDLActivity.mLayout!!.addView(SDLActivity.mTextEdit, params)
+            if (mTextEdit == null) {
+                mTextEdit = DummyEdit(context)
+                mLayout!!.addView(mTextEdit, params)
             } else {
-                SDLActivity.mTextEdit!!.layoutParams = params
+                mTextEdit!!.layoutParams = params
             }
-            SDLActivity.mTextEdit!!.visibility = View.VISIBLE
-            SDLActivity.mTextEdit!!.requestFocus()
-            val imm = SDL.getContext()!!
-                .getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.showSoftInput(SDLActivity.mTextEdit, 0)
-            SDLActivity.mScreenKeyboardShown = true
+            mTextEdit!!.visibility = View.VISIBLE
+            mTextEdit!!.requestFocus()
+            val imm = context?.getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.showSoftInput(mTextEdit, 0)
+            mScreenKeyboardShown = true
         }
     }
 
@@ -716,7 +752,7 @@ object SDLUtils {
      */
     @JvmStatic
     fun clipboardHasText(): Boolean {
-        return SDLActivity.mClipboardHandler!!.clipboardHasText()
+        return mClipboardHandler?.clipboardHasText()?:false
     }
 
     /**
@@ -724,7 +760,7 @@ object SDLUtils {
      */
     @JvmStatic
     fun clipboardGetText(): String? {
-        return SDLActivity.mClipboardHandler!!.clipboardGetText()
+        return mClipboardHandler?.clipboardGetText()
     }
 
     /**
@@ -732,7 +768,7 @@ object SDLUtils {
      */
     @JvmStatic
     fun clipboardSetText(string: String?) {
-        SDLActivity.mClipboardHandler!!.clipboardSetText(string)
+        mClipboardHandler?.clipboardSetText(string)
     }
 
     /**
@@ -818,8 +854,10 @@ object SDLUtils {
         }
         if (Build.VERSION.SDK_INT >= 24) {
             try {
-                mSurface.pointerIcon =
-                    PointerIcon.getSystemIcon(SDL.getContext()!!, cursor_type)
+                context?.let {
+                    mSurface.pointerIcon =
+                        PointerIcon.getSystemIcon(it, cursor_type)
+                }
             } catch (e: Exception) {
                 return false
             }
@@ -958,11 +996,61 @@ object SDLUtils {
 //        "main"
     )
 
+    @JvmStatic
+    @Throws(UnsatisfiedLinkError::class, SecurityException::class, NullPointerException::class)
+    fun loadLibrary(libraryName: String?) {
+        if (libraryName == null) {
+            throw NullPointerException("No library name provided.")
+        }
+        try {
+            // Let's see if we have ReLinker available in the project.  This is necessary for
+            // some projects that have huge numbers of local libraries bundled, and thus may
+            // trip a bug in Android's native library loader which ReLinker works around.  (If
+            // loadLibrary works properly, ReLinker will simply use the normal Android method
+            // internally.)
+            //
+            // To use ReLinker, just add it as a dependency.  For more information, see
+            // https://github.com/KeepSafe/ReLinker for ReLinker's repository.
+            //
+            val relinkClass = context?.classLoader?.loadClass("com.getkeepsafe.relinker.ReLinker")
+            val relinkListenerClass =
+                context?.classLoader?.loadClass("com.getkeepsafe.relinker.ReLinker\$LoadListener")
+            val contextClass = context?.classLoader?.loadClass("android.content.Context")
+            val stringClass = context?.classLoader?.loadClass("java.lang.String")
+
+            // Get a 'force' instance of the ReLinker, so we can ensure libraries are reinstalled if
+            // they've changed during updates.
+            val forceMethod = relinkClass?.getDeclaredMethod("force")
+            val relinkInstance = forceMethod?.invoke(null)
+            val relinkInstanceClass: Class<*> = relinkInstance?.javaClass!!
+
+            // Actually load the library!
+            val loadMethod = relinkInstanceClass.getDeclaredMethod(
+                "loadLibrary",
+                contextClass,
+                stringClass,
+                stringClass,
+                relinkListenerClass
+            )
+            context?.let {
+                loadMethod.invoke(relinkInstance, it, libraryName, null, null)
+            }
+        } catch (e: Throwable) {
+            // Fall back
+            try {
+                System.loadLibrary(libraryName)
+            } catch (ule: UnsatisfiedLinkError) {
+                throw ule
+            } catch (se: SecurityException) {
+                throw se
+            }
+        }
+    }
 
     // Load the .so
     fun loadLibraries() {
         for (lib in libraries) {
-            SDL.loadLibrary(lib)
+            loadLibrary(lib)
         }
     }
 

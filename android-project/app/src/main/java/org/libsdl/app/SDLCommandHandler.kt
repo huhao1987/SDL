@@ -1,6 +1,7 @@
 package org.libsdl.app
 
 import android.app.Activity
+import android.content.Context
 import android.os.Build
 import android.os.Handler
 import android.os.Message
@@ -15,25 +16,23 @@ import org.libsdl.app.SDLUtils.COMMAND_CHANGE_WINDOW_STYLE
 import org.libsdl.app.SDLUtils.COMMAND_SET_KEEP_SCREEN_ON
 import org.libsdl.app.SDLUtils.COMMAND_TEXTEDIT_HIDE
 import org.libsdl.app.SDLUtils.mFullscreenModeActive
+import org.libsdl.app.SDLUtils.mScreenKeyboardShown
+import org.libsdl.app.SDLUtils.mTextEdit
 
-class SDLCommandHandler : Handler() {
+class SDLCommandHandler(val context: Context?) : Handler() {
      private val TAG = "SDLCommandHandler:"
+     private val activity = context as AppCompatActivity
     override fun handleMessage(msg: Message) {
-        val context = SDL.getContext()
-        if (context == null) {
-            Log.e(TAG, "error handling message, getContext() returned null")
-            return
-        }
         when (msg.arg1) {
             COMMAND_CHANGE_TITLE -> if (context is Activity) {
-                context.title = msg.obj as String
+                activity.title = msg.obj as String
             } else {
                 Log.e(TAG, "error handling message, getContext() returned no Activity")
             }
 
             COMMAND_CHANGE_WINDOW_STYLE -> if (Build.VERSION.SDK_INT >= 19) {
                 if (context is Activity) {
-                    val window = context.window
+                    val window = activity.window
                     if (window != null) {
                         if (msg.obj is Int && msg.obj as Int != 0) {
                             val flags = View.SYSTEM_UI_FLAG_FULLSCREEN or
@@ -60,20 +59,20 @@ class SDLCommandHandler : Handler() {
                 }
             }
 
-            COMMAND_TEXTEDIT_HIDE -> if (SDLActivity.mTextEdit != null) {
+            COMMAND_TEXTEDIT_HIDE -> if (mTextEdit != null) {
                 // Note: On some devices setting view to GONE creates a flicker in landscape.
                 // Setting the View's sizes to 0 is similar to GONE but without the flicker.
                 // The sizes will be set to useful values when the keyboard is shown again.
-                SDLActivity.mTextEdit!!.layoutParams = RelativeLayout.LayoutParams(0, 0)
-                val imm = context.getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(SDLActivity.mTextEdit!!.windowToken, 0)
-                SDLActivity.mScreenKeyboardShown = false
+                mTextEdit!!.layoutParams = RelativeLayout.LayoutParams(0, 0)
+                val imm = activity.getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
+                imm.hideSoftInputFromWindow(mTextEdit!!.windowToken, 0)
+                mScreenKeyboardShown = false
                 SDLUtils.mSurface.requestFocus()
             }
 
             COMMAND_SET_KEEP_SCREEN_ON -> {
                 if (context is Activity) {
-                    val window = context.window
+                    val window = activity.window
                     if (window != null) {
                         if (msg.obj is Int && msg.obj as Int != 0) {
                             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
