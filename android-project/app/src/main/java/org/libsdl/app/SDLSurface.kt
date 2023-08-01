@@ -27,6 +27,7 @@ import org.libsdl.app.SDLUtils.SDL_ORIENTATION_PORTRAIT
 import org.libsdl.app.SDLUtils.SDL_ORIENTATION_PORTRAIT_FLIPPED
 import org.libsdl.app.SDLUtils.handleKeyEvent
 import org.libsdl.app.SDLUtils.handleNativeState
+import org.libsdl.app.SDLUtils.mNextNativeState
 import org.libsdl.app.SDLUtils.motionListener
 import org.libsdl.app.SDLUtils.nativeSetScreenResolution
 import org.libsdl.app.SDLUtils.onNativeAccel
@@ -117,7 +118,7 @@ class SDLSurface : SurfaceView, SurfaceHolder.Callback,
         Log.v("SDL", "surfaceDestroyed()")
 
         // Transition to pause, if needed
-        SDLActivity.mNextNativeState = SDLUtils.NativeState.PAUSED
+        mNextNativeState = SDLUtils.NativeState.PAUSED
         handleNativeState()
         mIsSurfaceReady = false
         onNativeSurfaceDestroyed()
@@ -194,7 +195,7 @@ class SDLSurface : SurfaceView, SurfaceHolder.Callback,
         onNativeSurfaceChanged()
 
         /* Surface is ready */mIsSurfaceReady = true
-        SDLActivity.mNextNativeState = SDLUtils.NativeState.RESUMED
+        mNextNativeState = SDLUtils.NativeState.RESUMED
         handleNativeState()
     }
 
@@ -378,8 +379,8 @@ class SDLSurface : SurfaceView, SurfaceHolder.Callback,
                     newOrientation = SDL_ORIENTATION_PORTRAIT
                 }
             }
-            if (newOrientation != SDLActivity.mCurrentOrientation) {
-                SDLActivity.mCurrentOrientation = newOrientation
+            if (newOrientation != SDLUtils.mCurrentOrientation) {
+                SDLUtils.mCurrentOrientation = newOrientation
                 onNativeOrientationChanged(newOrientation)
             }
             onNativeAccel(

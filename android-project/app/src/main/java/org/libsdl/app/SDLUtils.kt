@@ -36,6 +36,8 @@ import android.widget.RelativeLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import java.util.Hashtable
+import java.util.Locale
 
 object SDLUtils {
     private val TAG = "SDLUtils:"
@@ -74,15 +76,42 @@ object SDLUtils {
     var mLayout: ViewGroup? = null
 
     var mClipboardHandler: SDLClipboardHandler? = null
+
     // Handler for the messages
     var commandHandler: Handler? = null
+    var mHIDDeviceManager: HIDDeviceManager? = null
 
-    lateinit var mSurface : SDLSurface
+    var mIsResumedCalled = false
+    var mHasFocus = true
+    val mHasMultiWindow = Build.VERSION.SDK_INT >= 24
+
+
+    @JvmField
+    var mCurrentOrientation = 0
+    var mCurrentLocale: Locale? = null
+
+    @JvmField
+    var mNextNativeState = SDLUtils.NativeState.INIT
+    var mCurrentNativeState = SDLUtils.NativeState.INIT
+
+    /** If shared libraries (e.g. SDL or the native application) could not be loaded.  */
+    var mBrokenLibraries = true
+
+    // Main components
+
+
+    var mCursors: Hashtable<Int, PointerIcon> = Hashtable()
+    var mLastCursorID = 0
+    var mMotionListener: SDLGenericMotionListener_API12? = null
+
+    lateinit var mSurface: SDLSurface
+
     enum class NativeState {
         INIT,
         RESUMED,
         PAUSED
     }
+
     val currentOrientation: Int
         get() {
             var result = SDL_ORIENTATION_UNKNOWN
@@ -221,40 +250,75 @@ object SDLUtils {
 
     @JvmStatic
     external fun onNativeLocaleChanged()
-    fun init(contac: Context){
+    fun init(contac: Context) {
         this.context = contac
         context?.apply {
-            SDLActivity.initialize()
+            initLibraries(this)
             SDLControllerManager.initialize()
 
             mClipboardHandler = SDLClipboardHandler(this)
             commandHandler = SDLCommandHandler(context)
-            SDLActivity.mHIDDeviceManager = HIDDeviceManager.acquire(this)
+            mHIDDeviceManager = HIDDeviceManager.acquire(this)
 
             // Set up the surface
-            SDLUtils.mSurface = SDLSurface(this)
+            mSurface = SDLSurface(this)
             mLayout = RelativeLayout(this)
-            mLayout?.addView(SDLUtils.mSurface)
+            mLayout?.addView(mSurface)
 
             // Get our current screen orientation and pass it down.
-            SDLActivity.mCurrentOrientation = currentOrientation
+            mCurrentOrientation = currentOrientation
             // Only record current orientation
-            onNativeOrientationChanged(SDLActivity.mCurrentOrientation)
+            onNativeOrientationChanged(mCurrentOrientation)
             try {
                 if (Build.VERSION.SDK_INT < 24) {
-                    SDLActivity.mCurrentLocale = resources.configuration.locale
+                    mCurrentLocale = resources.configuration.locale
                 } else {
-                    SDLActivity.mCurrentLocale = resources.configuration.locales[0]
+                    mCurrentLocale = resources.configuration.locales[0]
                 }
             } catch (ignored: Exception) {
             }
             nativeSetupJNI()
             SDLAudioManager.nativeSetupJNI()
             SDLControllerManager.nativeSetupJNI()
+            (this as AppCompatActivity).apply {
+                lifecycle.addObserver(SDLObserver())
+                setContentView(mLayout)
+                setWindowStyle(false)
+                window.decorView.setOnSystemUiVisibilityChangeListener(object :
+                    View.OnSystemUiVisibilityChangeListener {
+                    override fun onSystemUiVisibilityChange(visibility: Int) {
+                        if (mFullscreenModeActive && (visibility and View.SYSTEM_UI_FLAG_FULLSCREEN == 0 || visibility and View.SYSTEM_UI_FLAG_HIDE_NAVIGATION == 0)) {
+                            val handler = window.decorView.handler
+                            if (handler != null) {
+                                handler.removeCallbacks(rehideSystemUi) // Prevent a hide loop.
+                                handler.postDelayed(rehideSystemUi, 2000)
+                            }
+                        }
+                    }
+                })
+                // Get filename from "Open with" of another application
+                if (intent != null && intent.data != null) {
+                    val filename = intent.data!!.path
+                    if (filename != null) {
+                        Log.v(TAG, "Got filename: $filename")
+                        onNativeDropFile(filename)
+                    }
+                }
+            }
         }
-
     }
 
+    private val rehideSystemUi = Runnable {
+        if (Build.VERSION.SDK_INT >= 19) {
+            val flags = View.SYSTEM_UI_FLAG_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
+                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
+                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE or View.INVISIBLE
+            (context as AppCompatActivity).window.decorView.systemUiVisibility = flags
+        }
+    }
 
 
     // Send a message from the SDLMain thread
@@ -311,7 +375,7 @@ object SDLUtils {
                     }
                 }
             }
-            return result?:false
+            return result ?: false
         }
         return false
     }
@@ -405,7 +469,7 @@ object SDLUtils {
      */
     @JvmStatic
     fun setOrientation(w: Int, h: Int, resizable: Boolean, hint: String) {
-            setOrientationBis(w, h, resizable, hint)
+        setOrientationBis(w, h, resizable, hint)
     }
 
     /**
@@ -436,16 +500,16 @@ object SDLUtils {
      */
     @JvmStatic
     fun shouldMinimizeOnFocusLoss(): Boolean {
-    if (Build.VERSION.SDK_INT >= 24) {
-        if(context == null) {
-            return true;
+        if (Build.VERSION.SDK_INT >= 24) {
+            if (context == null) {
+                return true;
+            } else {
+                if ((context as AppCompatActivity).isInMultiWindowMode()
+                    || (context as AppCompatActivity).isInPictureInPictureMode()
+                )
+                    return false
+            }
         }
-        else{
-            if((context as AppCompatActivity).isInMultiWindowMode()
-                ||(context as AppCompatActivity).isInPictureInPictureMode())
-                return false
-        }
-    }
         return false
     }
 
@@ -501,7 +565,7 @@ object SDLUtils {
 
 
     @JvmStatic
-    var context: Context? =null
+    var context: Context? = null
 
     @JvmStatic
     val isAndroidTV: Boolean
@@ -531,6 +595,7 @@ object SDLUtils {
             val dHeightInches = metrics.heightPixels / metrics.ydpi.toDouble()
             return Math.sqrt(dWidthInches * dWidthInches + dHeightInches * dHeightInches)
         }
+
     @JvmStatic
     val isTablet: Boolean
         /**
@@ -619,7 +684,7 @@ object SDLUtils {
                 w,
                 h
             )
-        )?:false
+        ) ?: false
     }
 
     internal class ShowTextInputTask(var x: Int, var y: Int, var w: Int, var h: Int) : Runnable {
@@ -644,7 +709,8 @@ object SDLUtils {
             }
             mTextEdit!!.visibility = View.VISIBLE
             mTextEdit!!.requestFocus()
-            val imm = context?.getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
+            val imm =
+                context?.getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.showSoftInput(mTextEdit, 0)
             mScreenKeyboardShown = true
         }
@@ -720,7 +786,7 @@ object SDLUtils {
         /**
          * This method is called by SDL using JNI.
          */
-        get() =  mSurface.nativeSurface
+        get() = mSurface.nativeSurface
     // Input
     /**
      * This method is called by SDL using JNI.
@@ -752,7 +818,7 @@ object SDLUtils {
      */
     @JvmStatic
     fun clipboardHasText(): Boolean {
-        return mClipboardHandler?.clipboardHasText()?:false
+        return mClipboardHandler?.clipboardHasText() ?: false
     }
 
     /**
@@ -783,10 +849,10 @@ object SDLUtils {
         hotSpotY: Int
     ): Int {
         val bitmap = Bitmap.createBitmap(colors!!, width, height, Bitmap.Config.ARGB_8888)
-        ++SDLActivity.mLastCursorID
+        ++mLastCursorID
         if (Build.VERSION.SDK_INT >= 24) {
             try {
-                SDLActivity.mCursors!![SDLActivity.mLastCursorID] =
+                mCursors!![mLastCursorID] =
                     PointerIcon.create(bitmap, hotSpotX.toFloat(), hotSpotY.toFloat())
             } catch (e: Exception) {
                 return 0
@@ -794,7 +860,7 @@ object SDLUtils {
         } else {
             return 0
         }
-        return SDLActivity.mLastCursorID
+        return mLastCursorID
     }
 
     /**
@@ -804,7 +870,7 @@ object SDLUtils {
     fun destroyCustomCursor(cursorID: Int) {
         if (Build.VERSION.SDK_INT >= 24) {
             try {
-                SDLActivity.mCursors!!.remove(cursorID)
+                mCursors!!.remove(cursorID)
             } catch (e: Exception) {
             }
         }
@@ -818,7 +884,7 @@ object SDLUtils {
     fun setCustomCursor(cursorID: Int): Boolean {
         if (Build.VERSION.SDK_INT >= 24) {
             try {
-                mSurface.pointerIcon = SDLActivity.mCursors!![cursorID]
+                mSurface.pointerIcon = mCursors!![cursorID]
             } catch (e: Exception) {
                 return false
             }
@@ -881,7 +947,14 @@ object SDLUtils {
             nativePermissionResult(requestCode, true)
         }
     }
-
+    fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray
+    ){
+        val result = grantResults.size > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED
+        nativePermissionResult(requestCode, result)
+    }
     /**
      * This method is called by SDL using JNI.
      */
@@ -937,30 +1010,30 @@ object SDLUtils {
     /* Transition to next state */
     @JvmStatic
     fun handleNativeState() {
-        if (SDLActivity.mNextNativeState == SDLActivity.mCurrentNativeState) {
+        if (mNextNativeState == mCurrentNativeState) {
             // Already in same state, discard.
             return
         }
 
         // Try a transition to init state
-        if (SDLActivity.mNextNativeState == NativeState.INIT) {
-            SDLActivity.mCurrentNativeState = SDLActivity.mNextNativeState
+        if (mNextNativeState == NativeState.INIT) {
+            mCurrentNativeState = mNextNativeState
             return
         }
 
         // Try a transition to paused state
-        if (SDLActivity.mNextNativeState == NativeState.PAUSED) {
+        if (mNextNativeState == NativeState.PAUSED) {
             if (mSDLThread != null) {
                 nativePause()
             }
-                mSurface.handlePause()
-            SDLActivity.mCurrentNativeState = SDLActivity.mNextNativeState
+            mSurface.handlePause()
+            mCurrentNativeState = mNextNativeState
             return
         }
 
         // Try a transition to resumed state
-        if (SDLActivity.mNextNativeState == NativeState.RESUMED) {
-            if (mSurface!!.mIsSurfaceReady && SDLActivity.mHasFocus && SDLActivity.mIsResumedCalled) {
+        if (mNextNativeState == NativeState.RESUMED) {
+            if (mSurface!!.mIsSurfaceReady && mHasFocus && mIsResumedCalled) {
                 if (mSDLThread == null) {
                     // This is the entry point to the C app.
                     // Start up the C app thread and enable sensor input for the first time
@@ -974,7 +1047,7 @@ object SDLUtils {
                     nativeResume()
                 }
                 mSurface.handleResume()
-                SDLActivity.mCurrentNativeState = SDLActivity.mNextNativeState
+                mCurrentNativeState = mNextNativeState
             }
         }
     }
@@ -1078,18 +1151,17 @@ object SDLUtils {
     }
 
     fun pauseNativeThread() {
-        SDLActivity.mNextNativeState = NativeState.PAUSED
-        SDLActivity.mIsResumedCalled = false
-        if (SDLActivity.mBrokenLibraries) {
+        mNextNativeState = NativeState.PAUSED
+        if (mBrokenLibraries) {
             return
         }
         handleNativeState()
     }
 
     open fun resumeNativeThread() {
-        SDLActivity.mNextNativeState = NativeState.RESUMED
-        SDLActivity.mIsResumedCalled = true
-        if (SDLActivity.mBrokenLibraries) {
+        mNextNativeState = NativeState.RESUMED
+        mIsResumedCalled = true
+        if (mBrokenLibraries) {
             return
         }
         handleNativeState()
@@ -1262,7 +1334,7 @@ object SDLUtils {
     }
 
 
-    var arguments : Array<String> = arrayOf()
+    var arguments: Array<String> = arrayOf()
     fun isTextInputEvent(event: KeyEvent): Boolean {
 
         // Key pressed with Ctrl should be sent as SDL_KEYDOWN/SDL_KEYUP and not SDL_TEXTINPUT
@@ -1270,18 +1342,91 @@ object SDLUtils {
             false
         } else event.isPrintingKey || event.keyCode == KeyEvent.KEYCODE_SPACE
     }
+
+    fun onWIndowFocusChanged(hasFocus: Boolean){
+        if (mBrokenLibraries) {
+            return
+        }
+        mHasFocus = hasFocus
+        if (hasFocus) {
+            mNextNativeState = NativeState.RESUMED
+            motionListener!!.reclaimRelativeMouseModeIfNeeded()
+            handleNativeState()
+            nativeFocusChanged(true)
+        } else {
+            nativeFocusChanged(false)
+            if (!mHasMultiWindow) {
+                mNextNativeState = NativeState.PAUSED
+                handleNativeState()
+            }
+        }
+    }
+
+    fun onLowMemory(){
+        Log.v(TAG, "onLowMemory()")
+        if (mBrokenLibraries) {
+            return
+        }
+        nativeLowMemory()
+    }
+
+    fun onConfigurationChanged(configration: Configuration){
+        Log.v(TAG, "onConfigurationChanged()")
+        if (mBrokenLibraries) {
+            return
+        }
+        if (mCurrentLocale == null || mCurrentLocale != configration.locale) {
+            mCurrentLocale = configration.locale
+            onNativeLocaleChanged()
+        }
+    }
+
+    fun onBackPressed(){
+        // Check if we want to block the back button in case of mouse right click.
+        //
+        // If we do, the normal hardware back button will no longer work and people have to use home,
+        // but the mouse right click will work.
+        //
+        val trapBack = nativeGetHintBoolean("SDL_ANDROID_TRAP_BACK_BUTTON", false)
+        if (trapBack) {
+            // Exit and let the mouse handler handle this button (if appropriate)
+            return
+        }
+
+        // Default system back button behavior.
+        if ((context as AppCompatActivity).isFinishing) {
+            (context as AppCompatActivity).onBackPressed()
+        }
+    }
+
+    fun dispatchKeyEvent(event: KeyEvent): Boolean{
+        if (mBrokenLibraries) {
+            return false
+        }
+        val keyCode = event.keyCode
+        return if (
+            keyCode == KeyEvent.KEYCODE_VOLUME_DOWN
+            || keyCode == KeyEvent.KEYCODE_VOLUME_UP
+            || keyCode == KeyEvent.KEYCODE_CAMERA
+            || keyCode == KeyEvent.KEYCODE_ZOOM_IN
+            || keyCode == KeyEvent.KEYCODE_ZOOM_OUT
+        ) {
+            false
+        } else (context as AppCompatActivity).dispatchKeyEvent(event)
+    }
+
     @JvmStatic
     val motionListener: SDLGenericMotionListener_API12?
         get() {
-            if (SDLActivity.mMotionListener == null) {
+            if (mMotionListener == null) {
                 if (Build.VERSION.SDK_INT >= 26) {
-                    SDLActivity.mMotionListener = SDLGenericMotionListener_API26()
+                    mMotionListener = SDLGenericMotionListener_API26()
                 } else if (Build.VERSION.SDK_INT >= 24) {
-                    SDLActivity.mMotionListener = SDLGenericMotionListener_API24()
+                    mMotionListener = SDLGenericMotionListener_API24()
                 } else {
-                    SDLActivity.mMotionListener = SDLGenericMotionListener_API12()
+                    mMotionListener = SDLGenericMotionListener_API12()
                 }
             }
-            return SDLActivity.mMotionListener
+            return mMotionListener
         }
 }
