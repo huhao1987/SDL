@@ -13,15 +13,6 @@ import androidx.appcompat.app.AppCompatActivity
 open class SDLActivity : AppCompatActivity() {
     init {
         SDLUtils.arguments
-    }
-
-    private val TAG = "SDL"
-
-    // Setup
-    override fun onCreate(savedInstanceState: Bundle?) {
-        Log.v(TAG, "Device: " + Build.DEVICE)
-        Log.v(TAG, "Model: " + Build.MODEL)
-        Log.v(TAG, "onCreate()")
         SDLUtils.libraries = arrayListOf(
             "SDL2",
             // "SDL2_image",
@@ -34,6 +25,15 @@ open class SDLActivity : AppCompatActivity() {
             // "SDL2_ttf",
             "main",
         )
+    }
+
+    private val TAG = "SDL"
+
+    // Setup
+    override fun onCreate(savedInstanceState: Bundle?) {
+        Log.v(TAG, "Device: " + Build.DEVICE)
+        Log.v(TAG, "Model: " + Build.MODEL)
+        Log.v(TAG, "onCreate()")
         super.onCreate(savedInstanceState)
         SDLUtils.init(this)
     }

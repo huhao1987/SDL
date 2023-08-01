@@ -185,11 +185,6 @@ class SDLSurface : SurfaceView, SurfaceHolder.Callback,
                 }
             }
         }
-        if (skip) {
-            Log.v("SDL", "Skip .. Surface is not ready.")
-            mIsSurfaceReady = false
-            return
-        }
 
         /* If the surface has been previously destroyed by onNativeSurfaceDestroyed, recreate it here */
         onNativeSurfaceChanged()

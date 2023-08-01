@@ -250,7 +250,7 @@ object SDLUtils {
 
     @JvmStatic
     external fun onNativeLocaleChanged()
-    fun init(contac: Context) {
+    fun init(contac: Context,view: ViewGroup ?= null):SDLUtils {
         this.context = contac
         context?.apply {
             initLibraries(this)
@@ -282,7 +282,11 @@ object SDLUtils {
             SDLControllerManager.nativeSetupJNI()
             (this as AppCompatActivity).apply {
                 lifecycle.addObserver(SDLObserver())
-                setContentView(mLayout)
+                view?.apply {
+                    view.addView(mLayout)
+                }?: let {
+                    setContentView(mLayout)
+                }
                 setWindowStyle(false)
                 window.decorView.setOnSystemUiVisibilityChangeListener(object :
                     View.OnSystemUiVisibilityChangeListener {
@@ -306,8 +310,18 @@ object SDLUtils {
                 }
             }
         }
+        return this
     }
 
+    fun setLibraries(listofLibries: ArrayList<String>):SDLUtils {
+        libraries = listofLibries
+        return this
+    }
+
+    fun setArguments(listofArguments: ArrayList<String>):SDLUtils{
+        arguments = listofArguments.toTypedArray()
+        return this
+    }
     private val rehideSystemUi = Runnable {
         if (Build.VERSION.SDK_INT >= 19) {
             val flags = View.SYSTEM_UI_FLAG_FULLSCREEN or
