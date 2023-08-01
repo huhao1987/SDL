@@ -64,17 +64,12 @@ import java.util.Locale
  * SDL Activity
  */
 open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener {
-    // Handle the state of the native layer
-    enum class NativeState {
-        INIT,
-        RESUMED,
-        PAUSED
-    }
-
     init {
         SDLUtils.arguments
     }
-    protected fun createSDLSurface(context: Context): SDLSurface {
+    private val TAG = "SDL"
+
+    protected fun createSDLSurface(): SDLSurface {
         return SDLSurface(this)
     }
 
@@ -98,9 +93,9 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
         mHIDDeviceManager = acquire(this)
 
         // Set up the surface
-        mSurface = createSDLSurface(application)
+        SDLUtils.mSurface = createSDLSurface()
         mLayout = RelativeLayout(this)
-        mLayout?.addView(mSurface)
+        mLayout?.addView(SDLUtils.mSurface)
 
         // Get our current screen orientation and pass it down.
         mCurrentOrientation = currentOrientation
@@ -108,9 +103,9 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
         onNativeOrientationChanged(mCurrentOrientation)
         try {
             if (Build.VERSION.SDK_INT < 24) {
-                mCurrentLocale = context!!.resources.configuration.locale
+                mCurrentLocale = resources.configuration.locale
             } else {
-                mCurrentLocale = context!!.resources.configuration.locales[0]
+                mCurrentLocale = resources.configuration.locales[0]
             }
         } catch (ignored: Exception) {
         }
@@ -177,14 +172,14 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
         }
         mHasFocus = hasFocus
         if (hasFocus) {
-            mNextNativeState = NativeState.RESUMED
+            mNextNativeState = SDLUtils.NativeState.RESUMED
             motionListener!!.reclaimRelativeMouseModeIfNeeded()
             handleNativeState()
             nativeFocusChanged(true)
         } else {
             nativeFocusChanged(false)
             if (!mHasMultiWindow) {
-                mNextNativeState = NativeState.PAUSED
+                mNextNativeState = SDLUtils.NativeState.PAUSED
                 handleNativeState()
             }
         }
@@ -302,13 +297,6 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
     }
 
     companion object {
-        private const val TAG = "SDL"
-        @JvmStatic
-        val context: Context?
-            /**
-             * This method is called by SDL using JNI.
-             */
-            get() = SDL.getContext()
 
         /*
     // Display InputType.SOURCE/CLASS of events and devices
@@ -426,14 +414,13 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
         protected var mCurrentLocale: Locale? = null
 
         @JvmField
-        var mNextNativeState: NativeState? = null
-        var mCurrentNativeState: NativeState? = null
+        var mNextNativeState: SDLUtils.NativeState? = null
+        var mCurrentNativeState: SDLUtils.NativeState? = null
 
         /** If shared libraries (e.g. SDL or the native application) could not be loaded.  */
         var mBrokenLibraries = true
 
         // Main components
-        var mSurface: SDLSurface? = null
         var mTextEdit: DummyEdit? = null
         var mScreenKeyboardShown = false
         var mLayout: ViewGroup? = null
@@ -447,7 +434,6 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
         fun initialize() {
             // The static nature of the singleton and Android quirkyness force us to initialize everything here
             // Otherwise, when exiting the app and returning to it, these variables *keep* their pre exit values
-            mSurface = null
             mTextEdit = null
             mLayout = null
             mClipboardHandler = null
@@ -456,8 +442,8 @@ open class SDLActivity : AppCompatActivity(), OnSystemUiVisibilityChangeListener
             mSDLThread = null
             mIsResumedCalled = false
             mHasFocus = true
-            mNextNativeState = NativeState.INIT
-            mCurrentNativeState = NativeState.INIT
+            mNextNativeState = SDLUtils.NativeState.INIT
+            mCurrentNativeState = SDLUtils.NativeState.INIT
         }
     }
 }

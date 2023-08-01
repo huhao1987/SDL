@@ -68,7 +68,7 @@ class SDLCommandHandler : Handler() {
                 val imm = context.getSystemService(AppCompatActivity.INPUT_METHOD_SERVICE) as InputMethodManager
                 imm.hideSoftInputFromWindow(SDLActivity.mTextEdit!!.windowToken, 0)
                 SDLActivity.mScreenKeyboardShown = false
-                SDLActivity.mSurface!!.requestFocus()
+                SDLUtils.mSurface.requestFocus()
             }
 
             COMMAND_SET_KEEP_SCREEN_ON -> {

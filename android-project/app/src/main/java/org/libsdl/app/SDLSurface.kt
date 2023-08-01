@@ -7,6 +7,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Build
+import android.util.AttributeSet
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
@@ -43,7 +44,7 @@ import org.libsdl.app.SDLUtils.onNativeTouch
  *
  * Because of this, that's where we set up the SDL thread
  */
-class SDLSurface(var activity: AppCompatActivity) : SurfaceView(activity), SurfaceHolder.Callback,
+class SDLSurface : SurfaceView, SurfaceHolder.Callback,
     View.OnKeyListener, OnTouchListener, SensorEventListener {
     // Sensors
     protected var mSensorManager: SensorManager
@@ -65,8 +66,8 @@ class SDLSurface(var activity: AppCompatActivity) : SurfaceView(activity), Surfa
         setOnKeyListener(this)
         setOnTouchListener(this)
         mDisplay =
-            (activity.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
-        mSensorManager = activity.getSystemService(Context.SENSOR_SERVICE) as SensorManager
+            ((context as AppCompatActivity).getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay
+        mSensorManager = (context as AppCompatActivity).getSystemService(Context.SENSOR_SERVICE) as SensorManager
         setOnGenericMotionListener(motionListener)
 
         // Some arbitrary defaults to avoid a potential division by zero
@@ -75,6 +76,20 @@ class SDLSurface(var activity: AppCompatActivity) : SurfaceView(activity), Surfa
         mIsSurfaceReady = false
     }
 
+    constructor(context: Context?) : super(context)
+    constructor(context: Context?, attrs: AttributeSet?) : super(context, attrs)
+    constructor(context: Context?, attrs: AttributeSet?, defStyleAttr: Int) : super(
+        context,
+        attrs,
+        defStyleAttr
+    )
+
+    constructor(
+        context: Context?,
+        attrs: AttributeSet?,
+        defStyleAttr: Int,
+        defStyleRes: Int
+    ) : super(context, attrs, defStyleAttr, defStyleRes)
     fun handlePause() {
         enableSensor(Sensor.TYPE_ACCELEROMETER, false)
     }
@@ -102,7 +117,7 @@ class SDLSurface(var activity: AppCompatActivity) : SurfaceView(activity), Surfa
         Log.v("SDL", "surfaceDestroyed()")
 
         // Transition to pause, if needed
-        SDLActivity.mNextNativeState = SDLActivity.NativeState.PAUSED
+        SDLActivity.mNextNativeState = SDLUtils.NativeState.PAUSED
         handleNativeState()
         mIsSurfaceReady = false
         onNativeSurfaceDestroyed()
@@ -127,9 +142,9 @@ class SDLSurface(var activity: AppCompatActivity) : SurfaceView(activity), Surfa
             }
         } catch (ignored: Exception) {
         }
-        synchronized(activity) {
+        synchronized((context as AppCompatActivity)) {
             // In case we're waiting on a size change after going fullscreen, send a notification.
-            (activity as Object).notifyAll()
+            ((context as AppCompatActivity) as Object).notifyAll()
         }
         Log.v("SDL", "Window size: " + width + "x" + height)
         Log.v("SDL", "Device size: " + nDeviceWidth + "x" + nDeviceHeight)
@@ -139,7 +154,7 @@ class SDLSurface(var activity: AppCompatActivity) : SurfaceView(activity), Surfa
         // Prevent a screen distortion glitch,
         // for instance when the device is in Landscape and a Portrait App is resumed.
         var skip = false
-        val requestedOrientation = activity.requestedOrientation
+        val requestedOrientation = (context as AppCompatActivity).requestedOrientation
         if (requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_PORTRAIT || requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_PORTRAIT) {
             if (mWidth > mHeight) {
                 skip = true
@@ -163,7 +178,7 @@ class SDLSurface(var activity: AppCompatActivity) : SurfaceView(activity), Surfa
         // Don't skip in MultiWindow.
         if (skip) {
             if (Build.VERSION.SDK_INT >= 24) {
-                if (activity.isInMultiWindowMode) {
+                if ((context as AppCompatActivity).isInMultiWindowMode) {
                     Log.v("SDL", "Don't skip in Multi-Window")
                     skip = false
                 }
@@ -179,7 +194,7 @@ class SDLSurface(var activity: AppCompatActivity) : SurfaceView(activity), Surfa
         onNativeSurfaceChanged()
 
         /* Surface is ready */mIsSurfaceReady = true
-        SDLActivity.mNextNativeState = SDLActivity.NativeState.RESUMED
+        SDLActivity.mNextNativeState = SDLUtils.NativeState.RESUMED
         handleNativeState()
     }
 

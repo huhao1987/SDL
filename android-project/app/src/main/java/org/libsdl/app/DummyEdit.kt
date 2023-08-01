@@ -38,7 +38,7 @@ class DummyEdit(context: Context?) : View(context), View.OnKeyListener {
         // FIXME: And determine the keyboard presence doing this: http://stackoverflow.com/questions/2150078/how-to-check-visibility-of-software-keyboard-in-android
         // FIXME: An even more effective way would be if Android provided this out of the box, but where would the fun be in that :)
         if (event.action == KeyEvent.ACTION_UP && keyCode == KeyEvent.KEYCODE_BACK) {
-            if (SDLActivity.mTextEdit != null && SDLActivity.mTextEdit!!.visibility == VISIBLE) {
+            if(this.visibility == VISIBLE){
                 onNativeKeyboardFocusLost()
             }
         }

@@ -67,12 +67,17 @@ object SDLUtils {
     const val SDL_ORIENTATION_LANDSCAPE_FLIPPED = 2
     const val SDL_ORIENTATION_PORTRAIT = 3
     const val SDL_ORIENTATION_PORTRAIT_FLIPPED = 4
-
+    
+    lateinit var mSurface : SDLSurface
+    enum class NativeState {
+        INIT,
+        RESUMED,
+        PAUSED
+    }
     val currentOrientation: Int
         get() {
             var result = SDL_ORIENTATION_UNKNOWN
-            val activity = SDLActivity.context as Activity? ?: return result
-            val display = activity.windowManager.defaultDisplay
+            val display = (context as AppCompatActivity).windowManager.defaultDisplay
             when (display.rotation) {
                 Surface.ROTATION_0 -> result = SDL_ORIENTATION_PORTRAIT
                 Surface.ROTATION_90 -> result = SDL_ORIENTATION_LANDSCAPE
@@ -94,7 +99,7 @@ object SDLUtils {
             } else {
                 "libmain.so"
             }
-            return SDLActivity.context!!.applicationInfo.nativeLibraryDir + "/" + library
+            return context?.applicationInfo?.nativeLibraryDir + "/" + library
         }
     val mainFunction: String
         /**
@@ -230,7 +235,7 @@ object SDLUtils {
                     val realMetrics = DisplayMetrics()
                     display.getRealMetrics(realMetrics)
                     val bFullscreenLayout =
-                        realMetrics.widthPixels == SDLActivity.mSurface!!.width && realMetrics.heightPixels == SDLActivity.mSurface!!.height
+                        realMetrics.widthPixels == mSurface.width && realMetrics.heightPixels == mSurface.height
                     bShouldWait = if (data == 1) {
                         // If we aren't laid out fullscreen or actively in fullscreen mode already, we're going
                         // to change size and should wait for surfaceChanged() before we return, so the size
@@ -679,9 +684,7 @@ object SDLUtils {
         /**
          * This method is called by SDL using JNI.
          */
-        get() = if (SDLActivity.mSurface == null) {
-            null
-        } else SDLActivity.mSurface!!.nativeSurface
+        get() =  mSurface.nativeSurface
     // Input
     /**
      * This method is called by SDL using JNI.
@@ -779,7 +782,7 @@ object SDLUtils {
     fun setCustomCursor(cursorID: Int): Boolean {
         if (Build.VERSION.SDK_INT >= 24) {
             try {
-                SDLActivity.mSurface!!.pointerIcon = SDLActivity.mCursors!![cursorID]
+                mSurface.pointerIcon = SDLActivity.mCursors!![cursorID]
             } catch (e: Exception) {
                 return false
             }
@@ -815,7 +818,7 @@ object SDLUtils {
         }
         if (Build.VERSION.SDK_INT >= 24) {
             try {
-                SDLActivity.mSurface!!.pointerIcon =
+                mSurface.pointerIcon =
                     PointerIcon.getSystemIcon(SDL.getContext()!!, cursor_type)
             } catch (e: Exception) {
                 return false
@@ -902,39 +905,37 @@ object SDLUtils {
         }
 
         // Try a transition to init state
-        if (SDLActivity.mNextNativeState == SDLActivity.NativeState.INIT) {
+        if (SDLActivity.mNextNativeState == NativeState.INIT) {
             SDLActivity.mCurrentNativeState = SDLActivity.mNextNativeState
             return
         }
 
         // Try a transition to paused state
-        if (SDLActivity.mNextNativeState == SDLActivity.NativeState.PAUSED) {
+        if (SDLActivity.mNextNativeState == NativeState.PAUSED) {
             if (mSDLThread != null) {
                 nativePause()
             }
-            if (SDLActivity.mSurface != null) {
-                SDLActivity.mSurface!!.handlePause()
-            }
+                mSurface.handlePause()
             SDLActivity.mCurrentNativeState = SDLActivity.mNextNativeState
             return
         }
 
         // Try a transition to resumed state
-        if (SDLActivity.mNextNativeState == SDLActivity.NativeState.RESUMED) {
-            if (SDLActivity.mSurface!!.mIsSurfaceReady && SDLActivity.mHasFocus && SDLActivity.mIsResumedCalled) {
+        if (SDLActivity.mNextNativeState == NativeState.RESUMED) {
+            if (mSurface!!.mIsSurfaceReady && SDLActivity.mHasFocus && SDLActivity.mIsResumedCalled) {
                 if (mSDLThread == null) {
                     // This is the entry point to the C app.
                     // Start up the C app thread and enable sensor input for the first time
                     // FIXME: Why aren't we enabling sensor input at start?
                     mSDLThread = Thread(SDLMain(context as AppCompatActivity), "SDLThread")
-                    SDLActivity.mSurface!!.enableSensor(Sensor.TYPE_ACCELEROMETER, true)
+                    mSurface.enableSensor(Sensor.TYPE_ACCELEROMETER, true)
                     mSDLThread!!.start()
 
                     // No nativeResume(), don't signal Android_ResumeSem
                 } else {
                     nativeResume()
                 }
-                SDLActivity.mSurface!!.handleResume()
+                mSurface.handleResume()
                 SDLActivity.mCurrentNativeState = SDLActivity.mNextNativeState
             }
         }
@@ -989,7 +990,7 @@ object SDLUtils {
     }
 
     fun pauseNativeThread() {
-        SDLActivity.mNextNativeState = SDLActivity.NativeState.PAUSED
+        SDLActivity.mNextNativeState = NativeState.PAUSED
         SDLActivity.mIsResumedCalled = false
         if (SDLActivity.mBrokenLibraries) {
             return
@@ -998,7 +999,7 @@ object SDLUtils {
     }
 
     open fun resumeNativeThread() {
-        SDLActivity.mNextNativeState = SDLActivity.NativeState.RESUMED
+        SDLActivity.mNextNativeState = NativeState.RESUMED
         SDLActivity.mIsResumedCalled = true
         if (SDLActivity.mBrokenLibraries) {
             return
@@ -1049,7 +1050,7 @@ object SDLUtils {
         // block the calling thread
         synchronized(messageboxSelection) {
             try {
-                (SDLActivity.context as Object).wait()
+                (context as Object).wait()
             } catch (ex: InterruptedException) {
                 ex.printStackTrace()
                 return -1
