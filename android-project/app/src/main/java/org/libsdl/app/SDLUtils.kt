@@ -318,8 +318,8 @@ object SDLUtils {
         return this
     }
 
-    fun setArguments(listofArguments: ArrayList<String>):SDLUtils{
-        arguments = listofArguments.toTypedArray()
+    fun setArguments(listofArguments: Array<String>):SDLUtils{
+        arguments = listofArguments
         return this
     }
     private val rehideSystemUi = Runnable {
