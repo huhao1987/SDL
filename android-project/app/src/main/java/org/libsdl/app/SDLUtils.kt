@@ -91,8 +91,8 @@ object SDLUtils {
     var mCurrentLocale: Locale? = null
 
     @JvmField
-    var mNextNativeState = SDLUtils.NativeState.INIT
-    var mCurrentNativeState = SDLUtils.NativeState.INIT
+    var mNextNativeState = NativeState.INIT
+    var mCurrentNativeState = NativeState.INIT
 
     /** If shared libraries (e.g. SDL or the native application) could not be loaded.  */
     var mBrokenLibraries = true
@@ -318,7 +318,7 @@ object SDLUtils {
         return this
     }
 
-    fun setArguments(vararg listofArguments: String):SDLUtils{
+    fun setArguments(vararg listofArguments: String?):SDLUtils{
         arguments = listofArguments as Array<String>
         return this
     }
@@ -796,7 +796,7 @@ object SDLUtils {
     }
 
     @JvmStatic
-    val nativeSurface: Surface?
+    val nativeSurface: Surface
         /**
          * This method is called by SDL using JNI.
          */
