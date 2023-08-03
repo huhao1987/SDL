@@ -3,7 +3,12 @@ package org.libsdl.app
 import android.util.Log
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
+import kotlinx.coroutines.cancel
 
+/**
+ * A class uses the LifecycleObserver to process some actions within the Activity`s lifecycle,
+ * it allows users no need to call the actions in their onw Activity
+ */
 class SDLObserver: DefaultLifecycleObserver {
     private val TAG ="SDLObserver:"
 
@@ -53,18 +58,9 @@ class SDLObserver: DefaultLifecycleObserver {
             super.onDestroy(owner)
             return
         }
-        if (SDLUtils.mSDLThread != null) {
-
-            // Send Quit event to "SDLThread" thread
             SDLUtils.nativeSendQuit()
-
-            // Wait for "SDLThread" thread to end
-            try {
-                SDLUtils.mSDLThread!!.join()
-            } catch (e: Exception) {
-                Log.v(TAG, "Problem stopping SDLThread: $e")
-            }
-        }
+            SDLUtils.sdlMain?.cancel()
+        SDLAudioManager.sdlAudiojob?.cancel()
         SDLUtils.nativeQuit()
         super.onDestroy(owner)
     }
