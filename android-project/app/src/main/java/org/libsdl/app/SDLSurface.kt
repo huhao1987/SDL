@@ -61,6 +61,7 @@ class SDLSurface : SurfaceView, SurfaceHolder.Callback,
     // Startup
     init {
         holder.addCallback(this)
+        this.setLayerType(LAYER_TYPE_HARDWARE,null)
         isFocusable = true
         isFocusableInTouchMode = true
         requestFocus()
@@ -223,27 +224,45 @@ class SDLSurface : SurfaceView, SurfaceHolder.Callback,
         // 12290 = Samsung DeX mode desktop mouse
         // 12290 = 0x3002 = 0x2002 | 0x1002 = SOURCE_MOUSE | SOURCE_TOUCHSCREEN
         // 0x2   = SOURCE_CLASS_POINTER
-        if (event.source == InputDevice.SOURCE_MOUSE || event.source == InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_TOUCHSCREEN) {
-            var mouseButton = 1
-            try {
-                val `object` = event.javaClass.getMethod("getButtonState").invoke(event)
-                if (`object` != null) {
-                    mouseButton = `object` as Int
+        when (event.source) {
+            InputDevice.SOURCE_MOUSE, InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_TOUCHSCREEN -> {
+                var mouseButton = 1
+                try {
+                    val `object` = event.javaClass.getMethod("getButtonState").invoke(event)
+                    if (`object` != null) {
+                        mouseButton = `object` as Int
+                    }
+                } catch (ignored: Exception) {
                 }
-            } catch (ignored: Exception) {
-            }
 
-            // We need to check if we're in relative mouse mode and get the axis offset rather than the x/y values
-            // if we are.  We'll leverage our existing mouse motion listener
-            val motionListener = motionListener
-            x = motionListener!!.getEventX(event)
-            y = motionListener.getEventY(event)
-            onNativeMouse(mouseButton, action, x, y, motionListener.inRelativeMode())
-        } else {
-            when (action) {
-                MotionEvent.ACTION_MOVE -> {
-                    i = 0
-                    while (i < pointerCount) {
+                // We need to check if we're in relative mouse mode and get the axis offset rather than the x/y values
+                // if we are.  We'll leverage our existing mouse motion listener
+                val motionListener = motionListener
+                x = motionListener!!.getEventX(event)
+                y = motionListener.getEventY(event)
+                onNativeMouse(mouseButton, action, x, y, motionListener.inRelativeMode())
+            }
+            else -> {
+                when (action) {
+                    MotionEvent.ACTION_MOVE -> {
+                        i = 0
+                        while (i < pointerCount) {
+                            pointerFingerId = event.getPointerId(i)
+                            x = event.getX(i) / mWidth
+                            y = event.getY(i) / mHeight
+                            p = event.getPressure(i)
+                            if (p > 1.0f) {
+                                // may be larger than 1.0f on some devices
+                                // see the documentation of getPressure(i)
+                                p = 1.0f
+                            }
+                            onNativeTouch(touchDevId, pointerFingerId, action, x, y, p)
+                            i++
+                        }
+                    }
+
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_DOWN -> {
+                        i = event.actionIndex
                         pointerFingerId = event.getPointerId(i)
                         x = event.getX(i) / mWidth
                         y = event.getY(i) / mHeight
@@ -254,61 +273,40 @@ class SDLSurface : SurfaceView, SurfaceHolder.Callback,
                             p = 1.0f
                         }
                         onNativeTouch(touchDevId, pointerFingerId, action, x, y, p)
-                        i++
                     }
-                }
 
-                MotionEvent.ACTION_UP, MotionEvent.ACTION_DOWN -> {
-                    // Primary pointer up/down, the index is always zero
-                    i = 0
-                    // Non primary pointer up/down
-                    if (i == -1) {
+                    MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_POINTER_DOWN -> {
                         i = event.actionIndex
-                    }
-                    pointerFingerId = event.getPointerId(i)
-                    x = event.getX(i) / mWidth
-                    y = event.getY(i) / mHeight
-                    p = event.getPressure(i)
-                    if (p > 1.0f) {
-                        // may be larger than 1.0f on some devices
-                        // see the documentation of getPressure(i)
-                        p = 1.0f
-                    }
-                    onNativeTouch(touchDevId, pointerFingerId, action, x, y, p)
-                }
 
-                MotionEvent.ACTION_POINTER_UP, MotionEvent.ACTION_POINTER_DOWN -> {
-                    if (i == -1) {
-                        i = event.actionIndex
-                    }
-                    pointerFingerId = event.getPointerId(i)
-                    x = event.getX(i) / mWidth
-                    y = event.getY(i) / mHeight
-                    p = event.getPressure(i)
-                    if (p > 1.0f) {
-                        p = 1.0f
-                    }
-                    onNativeTouch(touchDevId, pointerFingerId, action, x, y, p)
-                }
-
-                MotionEvent.ACTION_CANCEL -> {
-                    i = 0
-                    while (i < pointerCount) {
                         pointerFingerId = event.getPointerId(i)
                         x = event.getX(i) / mWidth
                         y = event.getY(i) / mHeight
                         p = event.getPressure(i)
                         if (p > 1.0f) {
-                            // may be larger than 1.0f on some devices
-                            // see the documentation of getPressure(i)
                             p = 1.0f
                         }
-                        onNativeTouch(touchDevId, pointerFingerId, MotionEvent.ACTION_UP, x, y, p)
-                        i++
+                        onNativeTouch(touchDevId, pointerFingerId, action, x, y, p)
                     }
-                }
 
-                else -> {}
+                    MotionEvent.ACTION_CANCEL -> {
+                        i = 0
+                        while (i < pointerCount) {
+                            pointerFingerId = event.getPointerId(i)
+                            x = event.getX(i) / mWidth
+                            y = event.getY(i) / mHeight
+                            p = event.getPressure(i)
+                            if (p > 1.0f) {
+                                // may be larger than 1.0f on some devices
+                                // see the documentation of getPressure(i)
+                                p = 1.0f
+                            }
+                            onNativeTouch(touchDevId, pointerFingerId, MotionEvent.ACTION_UP, x, y, p)
+                            i++
+                        }
+                    }
+
+                    else -> {}
+                }
             }
         }
         return true

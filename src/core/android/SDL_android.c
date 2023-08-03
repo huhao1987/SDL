@@ -294,7 +294,7 @@ static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 static JavaVM *mJavaVM = NULL;
 
 /* Main activity */
-static jclass mActivityClass;
+static jclass mSDLUtilsClass;
 
 /* method signatures */
 static jmethodID midClipboardGetText;
@@ -528,7 +528,7 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved)
 
 void checkJNIReady(void)
 {
-    if (!mActivityClass || !mAudioManagerClass || !mControllerManagerClass) {
+    if (!mSDLUtilsClass || !mAudioManagerClass || !mControllerManagerClass) {
         /* We aren't fully initialized, let's just return. */
         return;
     }
@@ -586,38 +586,38 @@ JNIEXPORT void JNICALL SDL_JAVA_INTERFACE(nativeSetupJNI)(JNIEnv *env, jclass cl
         __android_log_print(ANDROID_LOG_ERROR, "SDL", "failed to create Android_ResumeSem semaphore");
     }
 
-    mActivityClass = (jclass)((*env)->NewGlobalRef(env, cls));
+    mSDLUtilsClass = (jclass)((*env)->NewGlobalRef(env, cls));
 
-    midClipboardGetText = (*env)->GetStaticMethodID(env, mActivityClass, "clipboardGetText", "()Ljava/lang/String;");
-    midClipboardHasText = (*env)->GetStaticMethodID(env, mActivityClass, "clipboardHasText", "()Z");
-    midClipboardSetText = (*env)->GetStaticMethodID(env, mActivityClass, "clipboardSetText", "(Ljava/lang/String;)V");
-    midCreateCustomCursor = (*env)->GetStaticMethodID(env, mActivityClass, "createCustomCursor", "([IIIII)I");
-    midDestroyCustomCursor = (*env)->GetStaticMethodID(env, mActivityClass, "destroyCustomCursor", "(I)V");
-    midGetContext = (*env)->GetStaticMethodID(env, mActivityClass, "getContext","()Landroid/content/Context;");
-    midGetDisplayDPI = (*env)->GetStaticMethodID(env, mActivityClass, "getDisplayDPI", "()Landroid/util/DisplayMetrics;");
-    midGetManifestEnvironmentVariables = (*env)->GetStaticMethodID(env, mActivityClass, "getManifestEnvironmentVariables", "()Z");
-    midGetNativeSurface = (*env)->GetStaticMethodID(env, mActivityClass, "getNativeSurface","()Landroid/view/Surface;");
-    midInitTouch = (*env)->GetStaticMethodID(env, mActivityClass, "initTouch", "()V");
-    midIsAndroidTV = (*env)->GetStaticMethodID(env, mActivityClass, "isAndroidTV","()Z");
-    midIsChromebook = (*env)->GetStaticMethodID(env, mActivityClass, "isChromebook", "()Z");
-    midIsDeXMode = (*env)->GetStaticMethodID(env, mActivityClass, "isDeXMode", "()Z");
-    midIsScreenKeyboardShown = (*env)->GetStaticMethodID(env, mActivityClass, "isScreenKeyboardShown","()Z");
-    midIsTablet = (*env)->GetStaticMethodID(env, mActivityClass, "isTablet", "()Z");
-    midManualBackButton = (*env)->GetStaticMethodID(env, mActivityClass, "manualBackButton", "()V");
-    midMinimizeWindow = (*env)->GetStaticMethodID(env, mActivityClass, "minimizeWindow","()V");
-    midOpenURL = (*env)->GetStaticMethodID(env, mActivityClass, "openURL", "(Ljava/lang/String;)I");
-    midRequestPermission = (*env)->GetStaticMethodID(env, mActivityClass, "requestPermission", "(Ljava/lang/String;I)V");
-    midShowToast = (*env)->GetStaticMethodID(env, mActivityClass, "showToast", "(Ljava/lang/String;IIII)I");
-    midSendMessage = (*env)->GetStaticMethodID(env, mActivityClass, "sendMessage", "(II)Z");
-    midSetActivityTitle = (*env)->GetStaticMethodID(env, mActivityClass, "setActivityTitle","(Ljava/lang/String;)Z");
-    midSetCustomCursor = (*env)->GetStaticMethodID(env, mActivityClass, "setCustomCursor", "(I)Z");
-    midSetOrientation = (*env)->GetStaticMethodID(env, mActivityClass, "setOrientation","(IIZLjava/lang/String;)V");
-    midSetRelativeMouseEnabled = (*env)->GetStaticMethodID(env, mActivityClass, "setRelativeMouseEnabled", "(Z)Z");
-    midSetSystemCursor = (*env)->GetStaticMethodID(env, mActivityClass, "setSystemCursor", "(I)Z");
-    midSetWindowStyle = (*env)->GetStaticMethodID(env, mActivityClass, "setWindowStyle","(Z)V");
-    midShouldMinimizeOnFocusLoss = (*env)->GetStaticMethodID(env, mActivityClass, "shouldMinimizeOnFocusLoss","()Z");
-    midShowTextInput =  (*env)->GetStaticMethodID(env, mActivityClass, "showTextInput", "(IIII)Z");
-    midSupportsRelativeMouse = (*env)->GetStaticMethodID(env, mActivityClass, "supportsRelativeMouse", "()Z");
+    midClipboardGetText = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "clipboardGetText", "()Ljava/lang/String;");
+    midClipboardHasText = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "clipboardHasText", "()Z");
+    midClipboardSetText = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "clipboardSetText", "(Ljava/lang/String;)V");
+    midCreateCustomCursor = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "createCustomCursor", "([IIIII)I");
+    midDestroyCustomCursor = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "destroyCustomCursor", "(I)V");
+    midGetContext = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "getContext", "()Landroid/content/Context;");
+    midGetDisplayDPI = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "getDisplayDPI", "()Landroid/util/DisplayMetrics;");
+    midGetManifestEnvironmentVariables = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "getManifestEnvironmentVariables", "()Z");
+    midGetNativeSurface = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "getNativeSurface", "()Landroid/view/Surface;");
+    midInitTouch = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "initTouch", "()V");
+    midIsAndroidTV = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "isAndroidTV", "()Z");
+    midIsChromebook = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "isChromebook", "()Z");
+    midIsDeXMode = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "isDeXMode", "()Z");
+    midIsScreenKeyboardShown = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "isScreenKeyboardShown", "()Z");
+    midIsTablet = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "isTablet", "()Z");
+    midManualBackButton = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "manualBackButton", "()V");
+    midMinimizeWindow = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "minimizeWindow", "()V");
+    midOpenURL = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "openURL", "(Ljava/lang/String;)I");
+    midRequestPermission = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "requestPermission", "(Ljava/lang/String;I)V");
+    midShowToast = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "showToast", "(Ljava/lang/String;IIII)I");
+    midSendMessage = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "sendMessage", "(II)Z");
+    midSetActivityTitle = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "setActivityTitle", "(Ljava/lang/String;)Z");
+    midSetCustomCursor = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "setCustomCursor", "(I)Z");
+    midSetOrientation = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "setOrientation", "(IIZLjava/lang/String;)V");
+    midSetRelativeMouseEnabled = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "setRelativeMouseEnabled", "(Z)Z");
+    midSetSystemCursor = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "setSystemCursor", "(I)Z");
+    midSetWindowStyle = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "setWindowStyle", "(Z)V");
+    midShouldMinimizeOnFocusLoss = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "shouldMinimizeOnFocusLoss", "()Z");
+    midShowTextInput =  (*env)->GetStaticMethodID(env, mSDLUtilsClass, "showTextInput", "(IIII)Z");
+    midSupportsRelativeMouse = (*env)->GetStaticMethodID(env, mSDLUtilsClass, "supportsRelativeMouse", "()Z");
 
     if (!midClipboardGetText ||
         !midClipboardHasText ||
@@ -1373,7 +1373,7 @@ ANativeWindow* Android_JNI_GetNativeWindow(void)
     jobject s;
     JNIEnv *env = Android_JNI_GetEnv();
 
-    s = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetNativeSurface);
+    s = (*env)->CallStaticObjectMethod(env, mSDLUtilsClass, midGetNativeSurface);
     if (s) {
         anw = ANativeWindow_fromSurface(env, s);
         (*env)->DeleteLocalRef(env, s);
@@ -1387,14 +1387,14 @@ void Android_JNI_SetActivityTitle(const char *title)
     JNIEnv *env = Android_JNI_GetEnv();
 
     jstring jtitle = (*env)->NewStringUTF(env, title);
-    (*env)->CallStaticBooleanMethod(env, mActivityClass, midSetActivityTitle, jtitle);
+    (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midSetActivityTitle, jtitle);
     (*env)->DeleteLocalRef(env, jtitle);
 }
 
 void Android_JNI_SetWindowStyle(SDL_bool fullscreen)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    (*env)->CallStaticVoidMethod(env, mActivityClass, midSetWindowStyle, fullscreen ? 1 : 0);
+    (*env)->CallStaticVoidMethod(env, mSDLUtilsClass, midSetWindowStyle, fullscreen ? 1 : 0);
 }
 
 void Android_JNI_SetOrientation(int w, int h, int resizable, const char *hint)
@@ -1402,20 +1402,20 @@ void Android_JNI_SetOrientation(int w, int h, int resizable, const char *hint)
     JNIEnv *env = Android_JNI_GetEnv();
 
     jstring jhint = (*env)->NewStringUTF(env, (hint ? hint : ""));
-    (*env)->CallStaticVoidMethod(env, mActivityClass, midSetOrientation, w, h, (resizable? 1 : 0), jhint);
+    (*env)->CallStaticVoidMethod(env, mSDLUtilsClass, midSetOrientation, w, h, (resizable ? 1 : 0), jhint);
     (*env)->DeleteLocalRef(env, jhint);
 }
 
 void Android_JNI_MinizeWindow()
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    (*env)->CallStaticVoidMethod(env, mActivityClass, midMinimizeWindow);
+    (*env)->CallStaticVoidMethod(env, mSDLUtilsClass, midMinimizeWindow);
 }
 
 SDL_bool Android_JNI_ShouldMinimizeOnFocusLoss()
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    return (*env)->CallStaticBooleanMethod(env, mActivityClass, midShouldMinimizeOnFocusLoss);
+    return (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midShouldMinimizeOnFocusLoss);
 }
 
 SDL_bool Android_JNI_GetAccelerometerValues(float values[3])
@@ -1565,7 +1565,7 @@ int Android_JNI_GetDisplayDPI(float *ddpi, float *xdpi, float *ydpi)
 {
     JNIEnv *env = Android_JNI_GetEnv();
 
-    jobject jDisplayObj = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetDisplayDPI);
+    jobject jDisplayObj = (*env)->CallStaticObjectMethod(env, mSDLUtilsClass, midGetDisplayDPI);
     jclass jDisplayClass = (*env)->GetObjectClass(env, jDisplayObj);
 
     jfieldID fidXdpi = (*env)->GetFieldID(env, jDisplayClass, "xdpi", "F");
@@ -1674,19 +1674,19 @@ void Android_JNI_FlushCapturedAudio(void)
     case ENCODING_PCM_8BIT:
         {
             const jint len = (*env)->GetArrayLength(env, (jbyteArray)captureBuffer);
-            while ((*env)->CallStaticIntMethod(env, mActivityClass, midCaptureReadByteBuffer, (jbyteArray)captureBuffer, JNI_FALSE) == len) { /* spin */ }
+            while ((*env)->CallStaticIntMethod(env, mSDLUtilsClass, midCaptureReadByteBuffer, (jbyteArray)captureBuffer, JNI_FALSE) == len) { /* spin */ }
         }
         break;
     case ENCODING_PCM_16BIT:
         {
             const jint len = (*env)->GetArrayLength(env, (jshortArray)captureBuffer);
-            while ((*env)->CallStaticIntMethod(env, mActivityClass, midCaptureReadShortBuffer, (jshortArray)captureBuffer, JNI_FALSE) == len) { /* spin */ }
+            while ((*env)->CallStaticIntMethod(env, mSDLUtilsClass, midCaptureReadShortBuffer, (jshortArray)captureBuffer, JNI_FALSE) == len) { /* spin */ }
         }
         break;
     case ENCODING_PCM_FLOAT:
         {
             const jint len = (*env)->GetArrayLength(env, (jfloatArray)captureBuffer);
-            while ((*env)->CallStaticIntMethod(env, mActivityClass, midCaptureReadFloatBuffer, (jfloatArray)captureBuffer, JNI_FALSE) == len) { /* spin */ }
+            while ((*env)->CallStaticIntMethod(env, mSDLUtilsClass, midCaptureReadFloatBuffer, (jfloatArray)captureBuffer, JNI_FALSE) == len) { /* spin */ }
         }
         break;
     default:
@@ -1799,7 +1799,7 @@ static void Internal_Android_Create_AssetManager() {
     }
 
     /* context = SDLActivity.getContext(); */
-    context = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetContext);
+    context = (*env)->CallStaticObjectMethod(env, mSDLUtilsClass, midGetContext);
 
     /* javaAssetManager = context.getAssets(); */
     mid = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, context),
@@ -1906,7 +1906,7 @@ int Android_JNI_SetClipboardText(const char *text)
 {
     JNIEnv *env = Android_JNI_GetEnv();
     jstring string = (*env)->NewStringUTF(env, text);
-    (*env)->CallStaticVoidMethod(env, mActivityClass, midClipboardSetText, string);
+    (*env)->CallStaticVoidMethod(env, mSDLUtilsClass, midClipboardSetText, string);
     (*env)->DeleteLocalRef(env, string);
     return 0;
 }
@@ -1917,7 +1917,7 @@ char* Android_JNI_GetClipboardText(void)
     char *text = NULL;
     jstring string;
 
-    string = (*env)->CallStaticObjectMethod(env, mActivityClass, midClipboardGetText);
+    string = (*env)->CallStaticObjectMethod(env, mSDLUtilsClass, midClipboardGetText);
     if (string) {
         const char *utf = (*env)->GetStringUTFChars(env, string, 0);
         if (utf) {
@@ -1933,7 +1933,7 @@ char* Android_JNI_GetClipboardText(void)
 SDL_bool Android_JNI_HasClipboardText(void)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    jboolean retval = (*env)->CallStaticBooleanMethod(env, mActivityClass, midClipboardHasText);
+    jboolean retval = (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midClipboardHasText);
     return (retval == JNI_TRUE) ? SDL_TRUE : SDL_FALSE;
 }
 
@@ -1962,7 +1962,7 @@ int Android_JNI_GetPowerInfo(int *plugged, int *charged, int *battery, int *seco
 
 
     /* context = SDLActivity.getContext(); */
-    context = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetContext);
+    context = (*env)->CallStaticObjectMethod(env, mSDLUtilsClass, midGetContext);
 
     action = (*env)->NewStringUTF(env, "android.intent.action.BATTERY_CHANGED");
 
@@ -1973,7 +1973,7 @@ int Android_JNI_GetPowerInfo(int *plugged, int *charged, int *battery, int *seco
 
     (*env)->DeleteLocalRef(env, action);
 
-    mid = (*env)->GetMethodID(env, mActivityClass, "registerReceiver", "(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;)Landroid/content/Intent;");
+    mid = (*env)->GetMethodID(env, mSDLUtilsClass, "registerReceiver", "(Landroid/content/BroadcastReceiver;Landroid/content/IntentFilter;)Landroid/content/Intent;");
     intent = (*env)->CallObjectMethod(env, context, mid, NULL, filter);
 
     (*env)->DeleteLocalRef(env, filter);
@@ -2061,7 +2061,7 @@ int Android_JNI_GetPowerInfo(int *plugged, int *charged, int *battery, int *seco
 /* Add all touch devices */
 void Android_JNI_InitTouch() {
      JNIEnv *env = Android_JNI_GetEnv();
-    (*env)->CallStaticVoidMethod(env, mActivityClass, midInitTouch);
+    (*env)->CallStaticVoidMethod(env, mSDLUtilsClass, midInitTouch);
 }
 
 void Android_JNI_PollInputDevices(void)
@@ -2105,7 +2105,7 @@ int Android_JNI_SendMessage(int command, int param)
 {
     JNIEnv *env = Android_JNI_GetEnv();
     jboolean success;
-    success = (*env)->CallStaticBooleanMethod(env, mActivityClass, midSendMessage, command, param);
+    success = (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midSendMessage, command, param);
     return success ? 0 : -1;
 }
 
@@ -2117,11 +2117,11 @@ void Android_JNI_SuspendScreenSaver(SDL_bool suspend)
 void Android_JNI_ShowTextInput(SDL_Rect *inputRect)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    (*env)->CallStaticBooleanMethod(env, mActivityClass, midShowTextInput,
-                               inputRect->x,
-                               inputRect->y,
-                               inputRect->w,
-                               inputRect->h );
+    (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midShowTextInput,
+                                    inputRect->x,
+                                    inputRect->y,
+                                    inputRect->w,
+                                    inputRect->h );
 }
 
 void Android_JNI_HideTextInput(void)
@@ -2135,7 +2135,7 @@ SDL_bool Android_JNI_IsScreenKeyboardShown(void)
 {
     JNIEnv *env = Android_JNI_GetEnv();
     jboolean is_shown = 0;
-    is_shown = (*env)->CallStaticBooleanMethod(env, mActivityClass, midIsScreenKeyboardShown);
+    is_shown = (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midIsScreenKeyboardShown);
     return is_shown;
 }
 
@@ -2203,7 +2203,7 @@ int Android_JNI_ShowMessageBox(const SDL_MessageBoxData *messageboxdata, int *bu
     (*env)->DeleteLocalRef(env, clazz);
 
     /* context = SDLActivity.getContext(); */
-    context = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetContext);
+    context = (*env)->CallStaticObjectMethod(env, mSDLUtilsClass, midGetContext);
 
     clazz = (*env)->GetObjectClass(env, context);
 
@@ -2255,7 +2255,7 @@ void *SDL_AndroidGetActivity(void)
     }
 
     /* return SDLActivity.getContext(); */
-    return (*env)->CallStaticObjectMethod(env, mActivityClass, midGetContext);
+    return (*env)->CallStaticObjectMethod(env, mSDLUtilsClass, midGetContext);
 }
 
 int SDL_GetAndroidSDKVersion(void)
@@ -2273,31 +2273,31 @@ int SDL_GetAndroidSDKVersion(void)
 SDL_bool SDL_IsAndroidTablet(void)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    return (*env)->CallStaticBooleanMethod(env, mActivityClass, midIsTablet);
+    return (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midIsTablet);
 }
 
 SDL_bool SDL_IsAndroidTV(void)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    return (*env)->CallStaticBooleanMethod(env, mActivityClass, midIsAndroidTV);
+    return (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midIsAndroidTV);
 }
 
 SDL_bool SDL_IsChromebook(void)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    return (*env)->CallStaticBooleanMethod(env, mActivityClass, midIsChromebook);
+    return (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midIsChromebook);
 }
 
 SDL_bool SDL_IsDeXMode(void)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    return (*env)->CallStaticBooleanMethod(env, mActivityClass, midIsDeXMode);
+    return (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midIsDeXMode);
 }
 
 void SDL_AndroidBackButton(void)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    (*env)->CallStaticVoidMethod(env, mActivityClass, midManualBackButton);
+    (*env)->CallStaticVoidMethod(env, mSDLUtilsClass, midManualBackButton);
 }
 
 const char * SDL_AndroidGetInternalStoragePath(void)
@@ -2319,7 +2319,7 @@ const char * SDL_AndroidGetInternalStoragePath(void)
         }
 
         /* context = SDLActivity.getContext(); */
-        context = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetContext);
+        context = (*env)->CallStaticObjectMethod(env, mSDLUtilsClass, midGetContext);
         if (!context) {
             SDL_SetError("Couldn't get Android context!");
             LocalReferenceHolder_Cleanup(&refs);
@@ -2412,7 +2412,7 @@ const char * SDL_AndroidGetExternalStoragePath(void)
         }
 
         /* context = SDLActivity.getContext(); */
-        context = (*env)->CallStaticObjectMethod(env, mActivityClass, midGetContext);
+        context = (*env)->CallStaticObjectMethod(env, mSDLUtilsClass, midGetContext);
 
         /* fileObj = context.getExternalFilesDir(); */
         mid = (*env)->GetMethodID(env, (*env)->GetObjectClass(env, context),
@@ -2450,14 +2450,14 @@ int SDL_AndroidShowToast(const char* message, int duration, int gravity, int xOf
 
 void Android_JNI_GetManifestEnvironmentVariables(void)
 {
-    if (!mActivityClass || !midGetManifestEnvironmentVariables) {
+    if (!mSDLUtilsClass || !midGetManifestEnvironmentVariables) {
         __android_log_print(ANDROID_LOG_WARN, "SDL", "Request to get environment variables before JNI is ready");
         return;
     }
 
     if (!bHasEnvironmentVariables) {
         JNIEnv *env = Android_JNI_GetEnv();
-        SDL_bool ret = (*env)->CallStaticBooleanMethod(env, mActivityClass, midGetManifestEnvironmentVariables);
+        SDL_bool ret = (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midGetManifestEnvironmentVariables);
         if (ret) {
             bHasEnvironmentVariables = SDL_TRUE;
         }
@@ -2472,7 +2472,7 @@ int Android_JNI_CreateCustomCursor(SDL_Surface *surface, int hot_x, int hot_y)
     pixels = (*env)->NewIntArray(env, surface->w * surface->h);
     if (pixels) {
         (*env)->SetIntArrayRegion(env, pixels, 0, surface->w * surface->h, (int *)surface->pixels);
-        custom_cursor = (*env)->CallStaticIntMethod(env, mActivityClass, midCreateCustomCursor, pixels, surface->w, surface->h, hot_x, hot_y);
+        custom_cursor = (*env)->CallStaticIntMethod(env, mSDLUtilsClass, midCreateCustomCursor, pixels, surface->w, surface->h, hot_x, hot_y);
         (*env)->DeleteLocalRef(env, pixels);
     } else {
         SDL_OutOfMemory();
@@ -2483,32 +2483,32 @@ int Android_JNI_CreateCustomCursor(SDL_Surface *surface, int hot_x, int hot_y)
 void Android_JNI_DestroyCustomCursor(int cursorID)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    (*env)->CallStaticVoidMethod(env, mActivityClass, midDestroyCustomCursor, cursorID);
+    (*env)->CallStaticVoidMethod(env, mSDLUtilsClass, midDestroyCustomCursor, cursorID);
     return;
 }
 
 SDL_bool Android_JNI_SetCustomCursor(int cursorID)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    return (*env)->CallStaticBooleanMethod(env, mActivityClass, midSetCustomCursor, cursorID);
+    return (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midSetCustomCursor, cursorID);
 }
 
 SDL_bool Android_JNI_SetSystemCursor(int cursorID)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    return (*env)->CallStaticBooleanMethod(env, mActivityClass, midSetSystemCursor, cursorID);
+    return (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midSetSystemCursor, cursorID);
 }
 
 SDL_bool Android_JNI_SupportsRelativeMouse(void)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    return (*env)->CallStaticBooleanMethod(env, mActivityClass, midSupportsRelativeMouse);
+    return (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midSupportsRelativeMouse);
 }
 
 SDL_bool Android_JNI_SetRelativeMouseEnabled(SDL_bool enabled)
 {
     JNIEnv *env = Android_JNI_GetEnv();
-    return (*env)->CallStaticBooleanMethod(env, mActivityClass, midSetRelativeMouseEnabled, (enabled == 1));
+    return (*env)->CallStaticBooleanMethod(env, mSDLUtilsClass, midSetRelativeMouseEnabled, (enabled == 1));
 }
 
 SDL_bool Android_JNI_RequestPermission(const char *permission)
@@ -2524,7 +2524,7 @@ SDL_bool Android_JNI_RequestPermission(const char *permission)
     SDL_AtomicSet(&bPermissionRequestPending, SDL_TRUE);
 
     jpermission = (*env)->NewStringUTF(env, permission);
-    (*env)->CallStaticVoidMethod(env, mActivityClass, midRequestPermission, jpermission, requestCode);
+    (*env)->CallStaticVoidMethod(env, mSDLUtilsClass, midRequestPermission, jpermission, requestCode);
     (*env)->DeleteLocalRef(env, jpermission);
 
     /* Wait for the request to complete */
@@ -2540,7 +2540,7 @@ int Android_JNI_ShowToast(const char* message, int duration, int gravity, int xO
     int result = 0;
     JNIEnv *env = Android_JNI_GetEnv();
     jstring jmessage = (*env)->NewStringUTF(env, message);
-    result = (*env)->CallStaticIntMethod(env, mActivityClass, midShowToast, jmessage, duration, gravity, xOffset, yOffset);
+    result = (*env)->CallStaticIntMethod(env, mSDLUtilsClass, midShowToast, jmessage, duration, gravity, xOffset, yOffset);
     (*env)->DeleteLocalRef(env, jmessage);
     return result;
 }
@@ -2608,7 +2608,7 @@ Android_JNI_OpenURL(const char *url)
 {
     JNIEnv *env = Android_JNI_GetEnv();
     jstring jurl = (*env)->NewStringUTF(env, url);
-    const int ret = (*env)->CallStaticIntMethod(env, mActivityClass, midOpenURL, jurl);
+    const int ret = (*env)->CallStaticIntMethod(env, mSDLUtilsClass, midOpenURL, jurl);
     (*env)->DeleteLocalRef(env, jurl);
     return ret;
 }

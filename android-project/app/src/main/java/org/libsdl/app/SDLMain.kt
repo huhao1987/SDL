@@ -15,7 +15,7 @@ import org.libsdl.app.SDLUtils.nativeRunMain
 import org.libsdl.app.SDLUtils.toActivity
 
 /**
- * The class is used to
+ * The class is used to create the main class in C.
  */
 class SDLMain  {
     private var sdlMainjob : Job? = null
@@ -26,7 +26,7 @@ class SDLMain  {
         sdlMainjob?: let{
             sdlMainjob =
                 CoroutineScope(Dispatchers.IO).launch {
-                    Log.v("SDL", "Running main function $mainFunction from library $arguments")
+                    Log.v(TAG, "Running main function $mainFunction from library $arguments")
                     nativeRunMain(mainSharedObject, mainFunction, arguments)
                     Log.v(TAG, "Finished main function")
                     if(SDLUtils.context.toActivity()?.isFinishing == true){
