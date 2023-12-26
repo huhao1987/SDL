@@ -663,7 +663,7 @@ JNIEXPORT void JNICALL SDL_JAVA_AUDIO_INTERFACE(nativeSetupJNI)(JNIEnv *env, jcl
     mAudioManagerClass = (jclass)((*env)->NewGlobalRef(env, cls));
 
     midAudioOpen = (*env)->GetStaticMethodID(env, mAudioManagerClass,
-                                "audioOpen", "(IIII)V");
+                                "audioOpen", "(IIII)[I");
     midAudioWriteByteBuffer = (*env)->GetStaticMethodID(env, mAudioManagerClass,
                                 "audioWriteByteBuffer", "([B)V");
     midAudioWriteShortBuffer = (*env)->GetStaticMethodID(env, mAudioManagerClass,
@@ -673,7 +673,7 @@ JNIEXPORT void JNICALL SDL_JAVA_AUDIO_INTERFACE(nativeSetupJNI)(JNIEnv *env, jcl
     midAudioClose = (*env)->GetStaticMethodID(env, mAudioManagerClass,
                                 "audioClose", "()V");
     midCaptureOpen = (*env)->GetStaticMethodID(env, mAudioManagerClass,
-                                "captureOpen", "(IIII)V");
+                                "captureOpen", "(IIII)[I");
     midCaptureReadByteBuffer = (*env)->GetStaticMethodID(env, mAudioManagerClass,
                                 "captureReadByteBuffer", "([BZ)I");
     midCaptureReadShortBuffer = (*env)->GetStaticMethodID(env, mAudioManagerClass,
@@ -1447,6 +1447,7 @@ int Android_JNI_OpenAudioDevice(int iscapture, SDL_AudioSpec *spec)
 {
     int audioformat;
     jobject jbufobj = NULL;
+    jobject result;
     int *resultElements;
     jboolean isCopy;
 
@@ -1468,13 +1469,23 @@ int Android_JNI_OpenAudioDevice(int iscapture, SDL_AudioSpec *spec)
 
     if (iscapture) {
         __android_log_print(ANDROID_LOG_VERBOSE, "SDL", "SDL audio: opening device for capture");
-        (*env)->CallStaticObjectMethod(env, mAudioManagerClass, midCaptureOpen, spec->freq, audioformat, spec->channels, spec->samples);
+        result = (*env)->CallStaticObjectMethod(env, mAudioManagerClass, midCaptureOpen, spec->freq, audioformat, spec->channels, spec->samples);
     } else {
         __android_log_print(ANDROID_LOG_VERBOSE, "SDL", "SDL audio: opening device for output");
-        (*env)->CallStaticObjectMethod(env, mAudioManagerClass, midAudioOpen, spec->freq, audioformat, spec->channels, spec->samples);
+        result = (*env)->CallStaticObjectMethod(env, mAudioManagerClass, midAudioOpen, spec->freq, audioformat, spec->channels, spec->samples);
+    }
+    if (result == NULL) {
+        /* Error during audio initialization, error printed from Java */
+        return SDL_SetError("Java-side initialization failed");
     }
 
+    if ((*env)->GetArrayLength(env, (jintArray)result) != 4) {
+        return SDL_SetError("Unexpected results from Java, expected 4, got %d", (*env)->GetArrayLength(env, (jintArray)result));
+    }
     isCopy = JNI_FALSE;
+    resultElements = (*env)->GetIntArrayElements(env, (jintArray)result, &isCopy);
+    spec->freq = resultElements[0];
+    audioformat = resultElements[1];
     switch (audioformat) {
     case ENCODING_PCM_8BIT:
         spec->format = AUDIO_U8;
@@ -1488,6 +1499,10 @@ int Android_JNI_OpenAudioDevice(int iscapture, SDL_AudioSpec *spec)
     default:
         return SDL_SetError("Unexpected audio format from Java: %d\n", audioformat);
     }
+    spec->channels = resultElements[2];
+    spec->samples = resultElements[3];
+    (*env)->ReleaseIntArrayElements(env, (jintArray)result, resultElements, JNI_ABORT);
+    (*env)->DeleteLocalRef(env, result);
 
     /* Allocating the audio buffer from the Java side and passing it as the return value for audioInit no longer works on
      * Android >= 4.2 due to a "stale global reference" error. So now we allocate this buffer directly from this side. */

@@ -36,17 +36,9 @@ import android.widget.RelativeLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 import java.util.Hashtable
 import java.util.Locale
 
-/**
- * @author Hao Hu
- * This class collects all logical functions (include all functions need to call and would be processed in Jni) from SDLActivity
- */
 object SDLUtils {
     private val TAG = "SDLUtils:"
 
@@ -105,7 +97,7 @@ object SDLUtils {
     /** If shared libraries (e.g. SDL or the native application) could not be loaded.  */
     var mBrokenLibraries = true
 
-    var sdlMain : SDLMain ?= null
+    // Main components
 
 
     var mCursors: Hashtable<Int, PointerIcon> = Hashtable()
@@ -153,6 +145,10 @@ object SDLUtils {
          * It can be overridden by derived classes.
          */
         get() = "SDL_main"
+
+    // This is what SDL runs in. It invokes SDL_main(), eventually
+    @JvmField
+    var mSDLThread: Thread? = null
 
     // C functions we call
     @JvmStatic
@@ -257,8 +253,6 @@ object SDLUtils {
     fun init(contac: Context,view: ViewGroup ?= null):SDLUtils {
         this.context = contac
         context?.apply {
-            sdlMain = SDLMain()
-
             initLibraries(this)
             SDLControllerManager.initialize()
 
@@ -960,7 +954,7 @@ object SDLUtils {
             nativePermissionResult(requestCode, true)
             return
         }
-        val activity = context.toActivity()
+        val activity = context as Activity?
         if (activity!!.checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) {
             activity.requestPermissions(arrayOf(permission), requestCode)
         } else {
@@ -1043,12 +1037,9 @@ object SDLUtils {
 
         // Try a transition to paused state
         if (mNextNativeState == NativeState.PAUSED) {
-            sdlMain?.pause {
+            if (mSDLThread != null) {
                 nativePause()
             }
-//            if (mSDLThread != null) {
-//                nativePause()
-//            }
             mSurface.handlePause()
             mCurrentNativeState = mNextNativeState
             return
@@ -1056,8 +1047,19 @@ object SDLUtils {
 
         // Try a transition to resumed state
         if (mNextNativeState == NativeState.RESUMED) {
-            if (mSurface.mIsSurfaceReady && mHasFocus && mIsResumedCalled) {
-                sdlMain?.run()
+            if (mSurface!!.mIsSurfaceReady && mHasFocus && mIsResumedCalled) {
+                if (mSDLThread == null) {
+                    // This is the entry point to the C app.
+                    // Start up the C app thread and enable sensor input for the first time
+                    // FIXME: Why aren't we enabling sensor input at start?
+                    mSDLThread = Thread(SDLMain(context as AppCompatActivity), "SDLThread")
+                    mSurface.enableSensor(Sensor.TYPE_ACCELEROMETER, true)
+                    mSDLThread!!.start()
+
+                    // No nativeResume(), don't signal Android_ResumeSem
+                } else {
+                    nativeResume()
+                }
                 mSurface.handleResume()
                 mCurrentNativeState = mNextNativeState
             }
@@ -1441,9 +1443,4 @@ object SDLUtils {
             }
             return mMotionListener
         }
-
-    fun Context?.toActivity():AppCompatActivity?{
-        if(this == null) return null
-        return this as AppCompatActivity
-    }
 }
