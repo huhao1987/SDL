@@ -8,7 +8,7 @@ import android.widget.EditText
 import org.libsdl.app.SDLUtils.onNativeSoftReturnKey
 
 internal class SDLInputConnection(targetView: View?, fullEditor: Boolean) :
-    BaseInputConnection(targetView, fullEditor) {
+    BaseInputConnection(targetView!!, fullEditor) {
     protected var mEditText: EditText
     protected var mCommittedText = ""
 

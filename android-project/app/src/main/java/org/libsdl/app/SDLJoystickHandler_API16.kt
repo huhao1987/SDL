@@ -80,8 +80,8 @@ internal open class SDLJoystickHandler_API16 : SDLJoystickHandler() {
                     val joystickDevice = InputDevice.getDevice(device_id)
                     joystick = SDLJoystick()
                     joystick.device_id = device_id
-                    joystick.name = joystickDevice.name
-                    joystick.desc = getJoystickDescriptor(joystickDevice)
+                    joystick.name = joystickDevice?.name
+                    joystick.desc = getJoystickDescriptor(joystickDevice!!)
                     joystick.axes = ArrayList()
                     joystick.hats = ArrayList()
                     val ranges = joystickDevice.motionRanges

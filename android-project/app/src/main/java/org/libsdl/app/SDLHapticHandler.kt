@@ -46,8 +46,8 @@ internal open class SDLHapticHandler {
             var haptic = getHaptic(deviceIds[i])
             if (haptic == null) {
                 val device = InputDevice.getDevice(deviceIds[i])
-                val vib = device.vibrator
-                if (vib.hasVibrator()) {
+                val vib = device?.vibrator
+                if (vib?.hasVibrator() == true) {
                     haptic = SDLHaptic()
                     haptic.device_id = deviceIds[i]
                     haptic.name = device.name
